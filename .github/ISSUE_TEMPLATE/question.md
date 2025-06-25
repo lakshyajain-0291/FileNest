@@ -73,7 +73,7 @@ assignees: ''
 ---
 
 ### 👋 Don't worry about asking "dumb" questions!
-Everyone was a beginner once. We're here to help you learn and succeed. The FileNest community is friendly and welcoming to newcomers.
+Everyone was a beginner once. We're here to help you learn and succeed. The LIBR community is friendly and welcoming to newcomers.
 
 ### 🆘 Need urgent help?
 For quick questions, you can also reach out to our mentors:

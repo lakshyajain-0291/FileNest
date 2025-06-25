@@ -1,7 +1,7 @@
 blank_issues_enabled: false
 contact_links:
-  - name: 📚 Beginner Guide
-    url: https://github.com/lakshyajain-0291/FileNest/blob/main/docs/setup.md
+  - name: 📚 Contributing Guide
+    url: https://github.com/lakshyajain-0291/FileNest/blob/main/CONTRIBUTING.md
     about: New to contributing? Start here for step-by-step guidance!
   - name: 💬 General Discussion
     url: https://github.com/lakshyajain-0291/FileNest/discussions

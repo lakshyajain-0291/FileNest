@@ -47,7 +47,7 @@
 - [ ] 💬 My commit messages follow the format (like `feat: add login button`)
 - [ ] 🌿 My branch has a descriptive name (like `add-login-button` or `fix-spelling`)
 - [ ] 📝 I have correctly updated the workflows for any new tech stack that I used
-- [ ] 📖 I read the [Setup Guide](../docs/setup.md) if this is my first PR
+- [ ] 📖 I read the [Contributing Guide](../CONTRIBUTING.md) if this is my first PR
 - [ ] 🤔 I would be comfortable explaining my changes to someone else
 
 ## 🤝 Additional Notes
@@ -58,7 +58,7 @@
 ---
 
 ### 📚 New to contributing? 
-Check out our [Setup Guide](../docs/setup.md) for step-by-step instructions!`
+Check out our [Contributing Guide](../CONTRIBUTING.md) for step-by-step instructions!`
 
 
 ### 🆘 Stuck or have questions?

@@ -64,4 +64,4 @@ assignees: ''
 ---
 
 ### 🚀 Want to build this feature yourself?
-Great! Comment "I'd like to work on this" and we'll help you get started. Check out our [Setup Guide](../docs/setup.md) if you're new to contributing!
+Great! Comment "I'd like to work on this" and we'll help you get started. Check out our [Contributing Guide](../CONTRIBUTING.md) if you're new to contributing!

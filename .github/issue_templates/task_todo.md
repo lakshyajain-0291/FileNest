@@ -104,4 +104,4 @@ assignees: ''
 Comment "I'd like to work on this" and we'll assign it to you! 
 
 ### 🆕 New contributor?
-Check out our [Setup Guide](../docs/setup.md) to get started. This might be a great first task if it's labeled `good first issue`!
+Check out our [Contributing Guide](../CONTRIBUTING.md) to get started. This might be a great first task if it's labeled `good first issue`!
