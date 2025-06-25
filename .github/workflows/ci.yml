@@ -23,7 +23,7 @@ jobs:
           fi
       - name: Set up Go
         if: steps.check_backend.outputs.exists == 'true'
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: '1.21'
       - name: Test backend modules
@@ -48,7 +48,7 @@ jobs:
           fi
       - name: Set up Go
         if: steps.check_network.outputs.exists == 'true'
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: '1.21'
       - name: Test network modules
@@ -142,7 +142,7 @@ jobs:
           node-version: '18'
       - name: Set up Go
         if: steps.check_shared.outputs.exists == 'true' && steps.check_shared.outputs.type == 'go'
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: '1.21'
       - name: Test shared modules (Node.js)
