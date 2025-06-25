@@ -175,7 +175,7 @@ jobs:
           fi
       - name: Lint Backend (Go)
         if: steps.check_backend.outputs.exists == 'true'
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v8
         with:
           version: v1.55.2
           working-directory: backend
@@ -196,7 +196,7 @@ jobs:
           fi
       - name: Lint Network Layer (Go)
         if: steps.check_network.outputs.exists == 'true'
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v8
         with:
           version: v1.55.2
           working-directory: network
