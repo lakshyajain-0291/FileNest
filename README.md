@@ -131,11 +131,6 @@ We welcome contributions from developers, researchers, and anyone interested in 
 - **Backend & Network Developers**: Build core backend logic and P2P protocols
 - **Frontend Developers**: Create CLI tools and web interfaces
 
-## 📖 Documentation
-
-- [Architecture Guide](docs/architecture.md) - Detailed system architecture
-- [Contributing Guide](CONTRIBUTING.md) - Development environment setup and contribution guidelines
-- [Project Roadmap](docs/roadmap.md) - Development milestones and timeline
 
 ## 📄 License
 
