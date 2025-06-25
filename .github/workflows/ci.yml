@@ -11,7 +11,7 @@ jobs:
     name: Test Backend
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Check if backend folder exists
         id: check_backend
         run: |
@@ -36,7 +36,7 @@ jobs:
     name: Test Network Layer
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Check if network folder exists
         id: check_network
         run: |
@@ -61,7 +61,7 @@ jobs:
     name: Test Frontend (React)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Check if frontend folder exists
         id: check_frontend
         run: |
@@ -91,7 +91,7 @@ jobs:
     name: Test AI/ML Components
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Check if ai folder exists
         id: check_ai
         run: |
@@ -121,7 +121,7 @@ jobs:
     name: Test Shared Utilities
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Check if shared folder exists
         id: check_shared
         run: |
@@ -161,7 +161,7 @@ jobs:
     name: Lint Code
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       # Lint Backend
       - name: Check if backend folder exists
@@ -257,7 +257,7 @@ jobs:
     name: Test Documentation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Check if docs folder exists
         id: check_docs
         run: |
@@ -285,7 +285,7 @@ jobs:
     name: Test Scripts
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Check if scripts folder exists
         id: check_scripts
         run: |
