@@ -1,0 +1,4 @@
+POSTGRES_PORT= 5432
+DB_NAME= "filenest"
+DB_PASSWORD="password"
+DB_USER="postgres"
