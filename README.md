@@ -1,163 +1,147 @@
-# FileNest CRUD API (`tasks/crud/`)
+# FileNest Framework 🗂️🔍
 
-This folder contains a simple RESTful CRUD API for managing file metadata in the FileNest project. It is written in Go using the [Gin](https://github.com/gin-gonic/gin) web framework and MongoDB as the backend database.
+**A Multi-Modal Intelligent Search Engine over Decentralized Data**
 
----
+FileNest Framework represents a paradigm shift in information retrieval and content discovery, leveraging cutting-edge artificial intelligence and distributed computing technologies. The platform addresses the growing need for intelligent, scalable, and semantic search capabilities across diverse content types including text documents, research papers, images, and multimedia content.
 
-## 📂 Folder Structure
+## 🌟 Overview
+
+FileNest combines the ease of intelligent discovery—like Google Drive Search or YouTube recommendations—with the resilience and freedom of P2P systems. It provides an intelligent search engine that runs across a decentralized, peer-based network, making content discovery as simple and powerful as searching Google — but without giving up ownership, privacy, or freedom.
+
+## 🎯 Key Features
+
+- **🧠 Multi-Modal Intelligence**: Advanced AI-powered content understanding for text, images, videos, PDFs and other file formats
+- **🌐 Decentralized Architecture**: Peer-to-peer network system that creates fault tolerance and reduces central dependency  
+- **📚 Academic Specialization**: Sophisticated research paper analysis capabilities with citation networks and semantic understanding
+- **⚡ High Performance**: Sub-100ms search responses with 15-20 files/sec indexing throughput
+- **🔒 Privacy-First**: No central servers, no data mining, no platform censorship
+
+## 🏗️ Architecture
+
+FileNest operates through a hierarchical distributed tagging system that combines intelligent embedding generation with peer-to-peer routing mechanisms:
+
+### System Components
+
+1. **Bootstrap Phase**: Generate and distribute Depth 1 Tagging Vectors (D1TVs) across the network
+2. **Local Indexing**: Generate embeddings for files and route metadata through the hierarchical network
+3. **Continuous Training**: Update tagging vectors as new content is added to maintain accuracy
+4. **Query Phase**: Process queries through the distributed network with similarity-based pruning
+
+## 🛠️ Tech Stack
+
+### Backend & Network Infrastructure
+- **Core Language**: Golang for local-first application logic and AI/ML integration
+- **Network**: go-libp2p-kad-dht for discovery and network routing
+- **Database**: SQLite/PostgreSQL for metadata, vector databases (Milvus/FAISS) for embeddings
+- **Caching**: Redis for high-performance caching and session management
+
+### AI/ML Components
+- **NLP**: Hugging Face Transformers (BERT, RoBERTa, T5)
+- **Embeddings**: Sentence-Transformers for semantic vector representations
+- **Computer Vision**: OpenCV, PIL, and CLIP for image-text cross-modal understanding
+- **Multimodal**: Unified embedding system for image, text, and video content
+
+### Frontend
+- **CLI**: Golang Binary Executables with Cobra CLI
+- **Web Interface**: React.js for user interface development
+
+
+## 📁 Project Structure
+
+> **Disclaimer**: This is a tentative first draft that <i> may contain inaccuracies</i>. Content will be updated based on ongoing discussions and actual implementation progress.
 
 ```
-tasks/
-└── crud/
-    ├── .env                  # Environment variables (MongoDB URI, etc.)
-    ├── main.go               # Entry point for the CRUD API server
-    ├── go.mod, go.sum        # Go module files
-    └── pkg/
-        ├── config/
-        │   └── app.go        # Database connection logic
-        ├── controllers/
-        │   └── fileController.go  # HTTP handlers for CRUD operations
-        ├── models/
-        │   └── models.go     # File metadata struct
-        └── utils/
-            └── utils.go      # Utility functions (error handling)
+FileNest/
+├── .github/                # GitHub-specific configurations
+│   ├── workflows/          # CI/CD pipeline workflows
+│   ├── issue_templates/    # Issue templates for bug reports, feature requests, etc.
+│   └── pull_request_template.md  # Template for PR descriptions
+├── ai/                     # AI/ML models and scripts
+├── backend/                # Backend implementation (Go)
+├── frontend/               # Frontend (CLI & React.js code)
+├── network/                # P2P networking code
+├── shared/                 # Shared utilities
+├── docs/                   # Documentation files
+├── tests/                  # Test cases
+├── scripts/                # Automation and utility scripts
+├── examples/               # Example configurations and use cases
+├── .gitignore              # Ignore unnecessary files
+├── LICENSE                 # MIT License
+├── README.md               # This file
+└── CONTRIBUTING.md         # Contribution guidelines
 ```
-
----
 
 ## 🚀 Quick Start
+
+> **Disclaimer**: This is a tentative first draft that <i> may contain inaccuracies</i>. Content will be updated based on ongoing discussions and actual implementation progress.
 
 ### Prerequisites
 
 - Go 1.21 or higher
-- MongoDB instance (local or remote)
+- Python 3.9 or higher
+- Node.js 18 or higher (for frontend)
+- Git
 
-### Setup
-
-1. **Clone the repository**  
-   ```bash
-   git clone https://github.com/AISocietyIITJ/FileNest.git
-   cd FileNest/tasks/crud
-   ```
-
-2. **Configure Environment Variables**  
-   Create a `.env` file in `tasks/crud/` with:
-   ```
-   MONGO_URI=mongodb://localhost:27017
-   or
-   Use a MongoDB Cluster URI.
-   ```
-
-3. **Install dependencies**  
-   ```bash
-   go mod tidy
-   ```
-
-4. **Run the server**  
-   ```bash
-   go run main.go
-   ```
-   The API will be available at `http://localhost:8000`.
-
----
-
-## 🛠️ API Endpoints
-
-| Method | Endpoint            | Description                  |
-|--------|---------------------|------------------------------|
-| GET    | `/files`            | List all files               |
-| GET    | `/files/:id`        | Get file by ID               |
-| POST   | `/files`            | Create a new file metadata   |
-| PUT    | `/files/:id`        | Update file metadata by ID   |
-| DELETE | `/files/:id`        | Delete file metadata by ID   |
-
-### Example: File Metadata JSON
-
-```json
-{
-  "id": 1,
-  "filename": "report.pdf",
-  "filepath": "/docs/report.pdf",
-  "filesize": 123456,
-  "content_type": "application/pdf",
-  "created_at": "2024-06-26T12:00:00Z",
-  "updated_at": "2024-06-26T12:00:00Z"
-}
-```
-
----
-
-## 🧩 Code Structure
-
-### 1. Models
-
-- [`models.go`](pkg/models/models.go):  
-  Defines the `FileMetadata` struct, which represents the schema for file metadata stored in MongoDB.
-
-### 2. Database Configuration
-
-- [`app.go`](pkg/config/app.go):  
-  - Loads the MongoDB URI from the environment.
-  - Initializes and pings the MongoDB client.
-  - Provides a helper to fetch a collection handle.
-
-### 3. Controllers
-
-- [`fileController.go`](pkg/controllers/fileController.go):  
-  - Implements all CRUD HTTP handlers.
-  - Uses Gin context for request/response.
-  - Handles errors using utility functions.
-
-### 4. Utilities
-
-- [`utils.go`](pkg/utils/utils.go):  
-  - Provides `ThrowError` for consistent error responses.
-
----
-
-## ⚙️ Developer Notes
-
-### Environment Variables
-
-- The API expects `MONGO_URI` to be set in `.env`.
-- Use [github.com/joho/godotenv](https://github.com/joho/godotenv) in `main.go` to load `.env` automatically.
-
-### MongoDB Collections
-
-- The API uses two databases:  
-  - `filesCluster` (for storing file metadata in the `Files` collection)
-
-### Error Handling
-
-- All errors are returned as JSON with a consistent structure:
-  ```json
-  {
-    "Error: ": "error message",
-    "Context: ": "contextual info"
-  }
-  ```
-
-### Adding New Fields
-
-- To add new metadata fields, update the `FileMetadata` struct in [`models.go`](pkg/models/models.go) and ensure the controller logic handles them.
-
----
-
-## 🧪 Testing
-
-You can use [curl](https://curl.se/) or [Postman](https://www.postman.com/) to test the endpoints.  
-Example:
+### Installation
 
 ```bash
-curl -X POST http://localhost:8000/files \
-  -H "Content-Type: application/json" \
-  -d '{"id":2,"filename":"test.txt","filepath":"/tmp/test.txt","filesize":100,"content_type":"text/plain"}'
+# Clone the repository
+git clone https://github.com/AISocietyIITJ/FileNest.git
+cd FileNest
+
+# Set up backend dependencies
+cd backend
+go mod init filenest-backend
+go mod tidy
+
+# Set up AI/ML components
+cd ../ai
+pip install -r requirements.txt
+
+# Set up frontend
+cd ../frontend
+npm install
+
+# Run the system
+./scripts/start.sh
 ```
 
+## 🎯 Use Cases
+
+- **🎓 Academic Collaboration**: Labs and researchers can share files and papers directly, searchable across institutions without cloud lock-in
+- **📰 Censorship-Resistant Discovery**: Useful for journalists, archivists, or individuals seeking sensitive or restricted knowledge
+- **🔗 Decentralized Knowledge Commons**: Like a smarter, distributed version of torrenting — but semantically searchable
+- **🏢 Self-Hosted File Search**: Enabling secure internal discovery without exposing to external servers
+
+## 📊 Performance Targets
+
+| Metric | Current State | Target |
+|--------|--------------|--------|
+| Indexing Speed | 1 file/second | 15-20 files/second |
+| Search Latency | 800-1200ms | Under 100ms |
+| Concurrent Users | Single user | 1000+ users |
+| Storage Overhead | 85% | Under 20% |
+
+## 🤝 Contributing
+
+We welcome contributions from developers, researchers, and anyone interested in decentralized technologies! Please read our [Contributing Guidelines](CONTRIBUTING.md) to get started.
+
+### Team Roles
+- **AI/ML Research Engineers**: Work on semantic embeddings and multimodal content analysis
+- **Backend & Network Developers**: Build core backend logic and P2P protocols
+- **Frontend Developers**: Create CLI tools and web interfaces
+
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+This project is part of **Summer RAID 2025** (Realm of Artificial Intelligence and Data) at IIT Jodhpur.
+
+**Mentors**: Lakshya Jain, Aradhya Mahajan, Laksh Mendpara
+
 ---
 
-## 🛡️ License
-
-This project is licensed under the MIT License. See [LICENSE](../../LICENSE) for details.
-
----
+**FileNest Framework** - Making decentralized data as discoverable as centralized systems, but with freedom, privacy, and ownership intact.
