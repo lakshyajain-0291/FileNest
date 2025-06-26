@@ -1,5 +1,6 @@
 package repository
 
+//test functions of filemetadata (repository)
 import (
 	"context"
 	"log"
@@ -44,7 +45,7 @@ func TestMongoOpearations(t *testing.T) {
 	// we have just created client we have to connect to our collection
 	coll := mongoTestClient.Database("fileinfodb").Collection("files_test")
 
-	filerepo := FileMetadataRepo{MongoCollection: coll}
+	filerepo := FileMetadataRepo{MongoCollection: coll} //test repository object
 
 	//Insert 1 file data
 	t.Run("Insert File 1", func(t *testing.T) {

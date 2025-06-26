@@ -9,13 +9,13 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-type FileMetadataRepo struct {
-	MongoCollection *mongo.Collection //collection on which we point our operations
+type FileMetadataRepo struct { //repository layer
+	MongoCollection *mongo.Collection //holds a reference to the MongoDB collection on which we point our operations
 
 }
 
 func (r *FileMetadataRepo) InsertFile(fil *model.FileMetadata) (interface{}, error) { //interface is the object id thatll be created by mongodb
-	result, err := r.MongoCollection.InsertOne(context.Background(), fil)
+	result, err := r.MongoCollection.InsertOne(context.Background(), fil) //again, context.background() is used to create a context for the operation, which can be used to cancel the operation if needed and manage its lifetime
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +37,7 @@ func (r *FileMetadataRepo) FindFilebyID(fileID int) (*model.FileMetadata, error)
 }
 
 func (r *FileMetadataRepo) FindAllFiles() ([]model.FileMetadata, error) {
-	results, err := r.MongoCollection.Find(context.Background(), bson.D{})
+	results, err := r.MongoCollection.Find(context.Background(), bson.D{}) //creates cursor to iterate over all documents in the collection
 	if err != nil {
 		return nil, err
 	}
@@ -52,8 +52,8 @@ func (r *FileMetadataRepo) FindAllFiles() ([]model.FileMetadata, error) {
 
 func (r *FileMetadataRepo) UpdateFilebyID(fileID int, updatefile *model.FileMetadata) (int64, error) {
 	result, err := r.MongoCollection.UpdateOne(context.Background(),
-		bson.D{{Key: "id", Value: fileID}},
-		bson.D{{Key: "$set", Value: updatefile}})
+		bson.D{{Key: "id", Value: fileID}},       //old file metadata will be searched by id
+		bson.D{{Key: "$set", Value: updatefile}}) //new file metadata will replace the old one
 
 	if err != nil {
 		return 0, err

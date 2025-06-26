@@ -1,5 +1,6 @@
 package usecase
 
+//controls what happens on the local server when a request is made to the file service
 import (
 	"encoding/json"
 	"log"
@@ -23,8 +24,8 @@ type Response struct {
 }
 
 func (svc *FileService) CreateFile(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Content-Type", "application/json")
-	res := &Response{}
+	w.Header().Add("Content-Type", "application/json") //indicates JSON output
+	res := &Response{}                                 //to hold result or error
 	defer json.NewEncoder(w).Encode(res)
 
 	var fil model.FileMetadata
@@ -44,7 +45,7 @@ func (svc *FileService) CreateFile(w http.ResponseWriter, r *http.Request) {
 		MongoCollection: svc.MongoCollection}
 
 	//inser file
-	insertID, err := repo.InsertFile(&fil)
+	insertID, err := repo.InsertFile(&fil) //calls repository function to insert file metadata into the database
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		log.Println("error while inserting file", err)
@@ -62,8 +63,8 @@ func (svc *FileService) GetFilebyID(w http.ResponseWriter, r *http.Request) {
 	res := &Response{}
 	defer json.NewEncoder(w).Encode(res)
 	//get file id
-	fileIDStr := mux.Vars(r)["id"]
-	fileID, err := strconv.Atoi(fileIDStr)
+	fileIDStr := mux.Vars(r)["id"]         //extracts the file ID from the URL path
+	fileID, err := strconv.Atoi(fileIDStr) //convert to integer
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Println("invalid file id", err)

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/centauri1219/filenest/tests/crud/usecase"
+	"github.com/centauri1219/filenest/tasks/crud/usecase"
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -26,6 +26,7 @@ func init() { //initiate the mongo conneciton
 
 	//create mongo client
 	mongoClient, err = mongo.Connect(context.Background(), options.Client().ApplyURI(os.Getenv("MONGO_URI"))) //mongo connect only tells if the connection string is correct
+	//context.background() is used to create a context for the connection, which can be used to cancel the operation if needed and manage its lifetime
 	if err != nil {
 		log.Fatal("Error connecting to MongoDB", err)
 	}
@@ -39,13 +40,13 @@ func init() { //initiate the mongo conneciton
 }
 
 func main() {
-	defer mongoClient.Disconnect(context.Background()) //close mongo connection
-	coll := mongoClient.Database(os.Getenv("DB_NAME")).Collection(os.Getenv("COLLECTION_NAME"))
+	defer mongoClient.Disconnect(context.Background())                                          //close mongo connection
+	coll := mongoClient.Database(os.Getenv("DB_NAME")).Collection(os.Getenv("COLLECTION_NAME")) //coll is a reference to the mongodb collection using mongoclient
 	//create file service
-	fileservice := usecase.FileService{MongoCollection: coll}
+	fileservice := usecase.FileService{MongoCollection: coll} //fileservice is an object that provides file management logic, backed by mongodb
 
 	//create router
-	r := mux.NewRouter()
+	r := mux.NewRouter()                                           //directs incoming http requests to the handler funcs
 	r.HandleFunc("/health", healthHandler).Methods(http.MethodGet) //check if server is running
 	r.HandleFunc("/file", fileservice.CreateFile).Methods(http.MethodPost)
 	r.HandleFunc("/file/{id}", fileservice.GetFilebyID).Methods(http.MethodGet)
@@ -58,7 +59,7 @@ func main() {
 	http.ListenAndServe(":4444", r)
 }
 
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
+func healthHandler(w http.ResponseWriter, r *http.Request) { //mapped to /health endpoint
+	w.WriteHeader(http.StatusOK)   //http response
 	w.Write([]byte("running....")) //write response to client
 }
