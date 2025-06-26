@@ -1,4 +1,4 @@
-module filenest-backend
+module filenest
 
 go 1.24.4
 
