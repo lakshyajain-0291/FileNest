@@ -1,0 +1,17 @@
+[project]
+name = "mnist_classifier"
+version = "0.1.0"
+description = "MNIST classifier with <10k params and >98.5% accuracy"
+requires-python = ">=3.11"
+dependencies = [
+  "torch>=2.3.0",
+  "torchvision>=0.18.0",
+  "torchinfo>=1.8.0",
+  "wandb>=0.17.0",
+  "hydra-core>=1.3.2",
+  "ray[tune]>=2.22.0",
+  "black>=24.4.2",
+  "isort>=5.13.2",
+  "numpy>=1.26.4",
+  "matplotlib>=3.9.0"
+]
