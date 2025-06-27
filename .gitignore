@@ -273,7 +273,7 @@ uploads/
 downloads/
 cache/
 embeddings/
-models/
+# models/
 vectors/
 
 # FileNest configuration files (sensitive)
