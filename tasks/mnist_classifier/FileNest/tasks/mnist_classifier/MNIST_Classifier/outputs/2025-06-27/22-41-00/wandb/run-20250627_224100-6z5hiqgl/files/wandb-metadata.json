@@ -1,0 +1,30 @@
+{
+  "os":  "Windows-11-10.0.26100-SP0",
+  "python":  "CPython 3.12.4",
+  "startedAt":  "2025-06-27T17:11:01.258768Z",
+  "program":  "c:\\Users\\admin\\Documents\\MyCodes\\MNIST Classifier\\train.py",
+  "codePath":  "Documents\\MyCodes\\MNIST Classifier\\train.py",
+  "git":  {
+    "commit":  "418c24c5add27b2d544e8a83f633664d80f47d9c"
+  },
+  "email":  "anarghya1616@gmail.com",
+  "root":  "C:\\Users\\admin\\Documents\\MyCodes\\MNIST Classifier\\outputs\\2025-06-27\\22-41-00",
+  "host":  "DESKTOP-7VEUQ93",
+  "executable":  "C:\\Users\\admin\\Documents\\MyCodes\\MNIST Classifier\\.venv\\Scripts\\python.exe",
+  "codePathLocal":  "..\\..\\..\\train.py",
+  "cpu_count":  4,
+  "cpu_count_logical":  8,
+  "disk":  {
+    "/":  {
+      "total":  "394227871744",
+      "used":  "269147238400"
+    }
+  },
+  "memory":  {
+    "total":  "8360550400"
+  },
+  "cpu":  {
+    "count":  4,
+    "countLogical":  8
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "os": "Linux-6.8.0-57-generic-x86_64-with-glibc2.35",
+  "python": "CPython 3.10.12",
+  "startedAt": "2025-06-28T17:21:08.722857Z",
+  "program": "/home/anarghya/Documents/MNIST_Classifier/train.py",
+  "codePath": "train.py",
+  "email": "anarghya1616@gmail.com",
+  "root": "/home/anarghya/Documents/MNIST_Classifier",
+  "host": "anarghya-ThinkPad-L390",
+  "executable": "/home/anarghya/Documents/MNIST_Classifier/.venv/bin/python",
+  "codePathLocal": "train.py",
+  "cpu_count": 4,
+  "cpu_count_logical": 8,
+  "disk": {
+    "/": {
+      "total": "105351835648",
+      "used": "49056153600"
+    }
+  },
+  "memory": {
+    "total": "8096940032"
+  },
+  "cpu": {
+    "count": 4,
+    "countLogical": 8
+  }
+}

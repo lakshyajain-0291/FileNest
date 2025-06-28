@@ -1,0 +1,2 @@
+epochs: 15
+mixed_precision: true

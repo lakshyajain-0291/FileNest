@@ -1,0 +1,13 @@
+dataset:
+  dataset:
+    _target_: data.mnist.get_dataloaders
+    batch_size: 64
+    shuffle: true
+model:
+  model:
+    name: SmallMobileNet
+trainer:
+  trainer:
+    epochs: 20
+    lr: 0.01
+    mixed_precision: true

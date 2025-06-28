@@ -1,0 +1,3 @@
+_target_: data.mnist.get_dataloaders
+batch_size: 32
+shuffle: true

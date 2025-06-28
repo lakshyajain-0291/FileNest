@@ -1,0 +1,38 @@
+_wandb:
+    value:
+        cli_version: 0.20.1
+        m: []
+        python_version: 3.12.4
+        t:
+            "1":
+                - 1
+                - 50
+            "2":
+                - 1
+                - 41
+                - 50
+            "3":
+                - 16
+                - 55
+            "4": 3.12.4
+            "5": 0.20.1
+            "8":
+                - 3
+            "12": 0.20.1
+            "13": windows-amd64
+dataset:
+    value:
+        _target_: data.mnist.get_dataloaders
+        batch_size: 64
+        shuffle: true
+model:
+    value:
+        _target_: models.small_mobilenet.SmallMobileNet
+optimizer:
+    value:
+        _target_: torch.optim.Adam
+        lr: 0.01
+trainer:
+    value:
+        epochs: 20
+        mixed_precision: true

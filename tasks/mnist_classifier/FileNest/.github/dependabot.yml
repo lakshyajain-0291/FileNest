@@ -1,0 +1,106 @@
+version: 2
+updates:
+  # Frontend dependencies
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "@lakshyajain-0291"
+      - "@Aradhya2708"
+    assignees:
+      - "@lakshyajain-0291"
+    commit-message:
+      prefix: "deps(frontend)"
+      include: "scope"
+
+  # Backend dependencies (Go modules)
+  - package-ecosystem: "gomod"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "@lakshyajain-0291"
+      - "@Aradhya2708"
+    assignees:
+      - "@lakshyajain-0291"
+    commit-message:
+      prefix: "deps(backend)"
+      include: "scope"
+
+  # Network layer dependencies (Go modules)
+  - package-ecosystem: "gomod"
+    directory: "/network"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "@lakshyajain-0291"
+      - "@Aradhya2708"
+    assignees:
+      - "@lakshyajain-0291"
+    commit-message:
+      prefix: "deps(network)"
+      include: "scope"
+
+  # AI dependencies (Python pip)
+  - package-ecosystem: "pip"
+    directory: "/ai"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "@lakshyajain-0291"
+      - "@Aradhya2708"
+    assignees:
+      - "@lakshyajain-0291"
+    commit-message:
+      prefix: "deps(ai)"
+      include: "scope"
+
+  # Shared utilities (if Node.js)
+  - package-ecosystem: "npm"
+    directory: "/shared"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "@lakshyajain-0291"
+      - "@Aradhya2708"
+    assignees:
+      - "@lakshyajain-0291"
+    commit-message:
+      prefix: "deps(shared)"
+      include: "scope"
+
+  # Shared utilities (if Go)
+  - package-ecosystem: "gomod"
+    directory: "/shared"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "@lakshyajain-0291"
+      - "@Aradhya2708"
+    assignees:
+      - "@lakshyajain-0291"
+    commit-message:
+      prefix: "deps(shared)"
+      include: "scope"
+
+  # GitHub Actions - always check for workflow updates
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "@lakshyajain-0291"
+      - "@Aradhya2708"
+    assignees:
+      - "@lakshyajain-0291"
+    commit-message:
+      prefix: "deps(ci)"
+      include: "scope"
