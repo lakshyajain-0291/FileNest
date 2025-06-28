@@ -1,0 +1,12 @@
+# Lightweight CNN model configuration
+_target_: src.model.LightweightCNN
+
+# Model architecture parameters
+in_channels: 1
+num_classes: 10
+base_channels: 15
+dropout_rate: 0.2
+
+# Architecture details
+use_batch_norm: true
+use_global_avg_pool: true

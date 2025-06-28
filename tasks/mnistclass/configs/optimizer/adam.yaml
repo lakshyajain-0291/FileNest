@@ -1,0 +1,6 @@
+# Adam optimizer configuration
+_target_: torch.optim.Adam
+
+lr: 0.001
+weight_decay: 1e-4
+betas: [0.9, 0.999]

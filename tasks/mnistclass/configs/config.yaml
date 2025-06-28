@@ -1,0 +1,23 @@
+# Main configuration file
+defaults:
+  - model: lightweight_cnn
+  - optimizer: adam
+  - dataset: mnist
+
+# Training parameters
+training:
+  epochs: 20
+  batch_size: 128
+  learning_rate: 0.001
+  device: cuda
+  save_dir: "./checkpoints"
+  
+# Wandb configuration
+wandb:
+  project: "mnist-recognition"
+  entity: null  # Set to your wandb username
+  tags: ["mnist", "lightweight", "pytorch"]
+  
+# General settings
+seed: 42
+num_workers: 4

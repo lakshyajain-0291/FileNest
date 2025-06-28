@@ -1,0 +1,14 @@
+# MNIST dataset configuration
+name: "MNIST"
+data_dir: "./data"
+download: true
+
+# Data preprocessing
+normalize:
+  mean: [0.1307]
+  std: [0.3081]
+
+# Data loading
+batch_size: 128
+shuffle: true
+pin_memory: true
