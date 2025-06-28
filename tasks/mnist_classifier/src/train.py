@@ -6,9 +6,20 @@ from torch.utils.data import DataLoader
 from torchinfo import summary
 from src.model import SmallCNN
 
+import wandb
+
 
 def train_model():
     device= torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    wandb.init(project="mnist_classifier", name="smallcnn-baseline-run", config={
+        "epochs": 20,
+        "batch_size": 64,
+        "learning_rate": 0.001,
+        "optimizer": "Adam",
+        "scheduler_step_size": 5,
+        "scheduler_gamma": 0.5
+    })
 
     # Transforms
     transform= transforms.Compose([
@@ -28,6 +39,7 @@ def train_model():
 
     # Model, loss, optimizer
     model= SmallCNN().to(device)
+    wandb.watch(model, log="all", log_freq=100)
 
     criterion= nn.CrossEntropyLoss()
     optimizer= optim.Adam(model.parameters(), lr=0.001)
@@ -59,12 +71,20 @@ def train_model():
 
         print(f"Epoch {epoch}: Train Loss: {train_loss:.4f}, Accuracy: {train_accuracy:.2f}%")
 
-        evaluate_model(model, loaders["test"], device)
+        wandb.log({
+            "train_loss": train_loss,
+            "train_accuracy": train_accuracy,
+            "epoch": epoch
+        })
+
+        evaluate_model(model, loaders["test"], device, epoch)
 
         scheduler.step()
 
+    wandb.finish()
 
-def evaluate_model(model, loader, device):
+
+def evaluate_model(model, loader, device, epoch):
     model.eval()
     test_loss, correct= 0, 0
     criterion= nn.CrossEntropyLoss()
@@ -82,4 +102,9 @@ def evaluate_model(model, loader, device):
     accuracy= (100.*correct)/len(loader.dataset)
     print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {accuracy:.2f}%\n")
 
+    wandb.log({
+        "test_loss": test_loss,
+        "test_accuracy": accuracy,
+        "epoch": epoch
+    })
 
