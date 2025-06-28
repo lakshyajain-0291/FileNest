@@ -7,19 +7,15 @@ from torchinfo import summary
 from src.model import SmallCNN
 
 import wandb
+import hydra
+from omegaconf import DictConfig
 
-
-def train_model():
+@hydra.main(config_path="../config", config_name="config", version_base=None)
+def train_model(cfg: DictConfig):
     device= torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    wandb.init(project="mnist_classifier", name="smallcnn-baseline-run", config={
-        "epochs": 20,
-        "batch_size": 64,
-        "learning_rate": 0.001,
-        "optimizer": "Adam",
-        "scheduler_step_size": 5,
-        "scheduler_gamma": 0.5
-    })
+    wandb.init(project=cfg.wandb.project, name=cfg.wandb.run_name, config=cfg.train)
+
 
     # Transforms
     transform= transforms.Compose([
@@ -33,7 +29,7 @@ def train_model():
     test_dataset= datasets.MNIST(root="data", train=False, download=True, transform=transform)
 
     loaders= {
-        'train': DataLoader(train_dataset, batch_size=64, shuffle=True),
+        'train': DataLoader(train_dataset, batch_size=cfg.train.batch_size, shuffle=True),
         'test': DataLoader(test_dataset, batch_size=1000, shuffle=True)
     }
 
@@ -42,14 +38,14 @@ def train_model():
     wandb.watch(model, log="all", log_freq=100)
 
     criterion= nn.CrossEntropyLoss()
-    optimizer= optim.Adam(model.parameters(), lr=0.001)
-    scheduler= torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.5)
+    optimizer = optim.Adam(model.parameters(), lr=cfg.train.learning_rate)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=cfg.train.scheduler_step_size, gamma=cfg.train.scheduler_gamma)
 
     # Print parameter summary
     summary(model, input_size=(1, 1, 28, 28))
 
     # Training loop
-    for epoch in range(1, 21):
+    for epoch in range(1, cfg.train.epochs + 1):
         model.train()
         train_loss, correct= 0, 0
 

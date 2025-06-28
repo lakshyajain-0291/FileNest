@@ -1,0 +1,14 @@
+defaults:
+  - override hydra/job_logging: disabled
+
+train:
+  epochs: 15
+  batch_size: 64
+  learning_rate: 0.001
+  optimizer: "Adam"
+  scheduler_step_size: 5
+  scheduler_gamma: 0.5
+
+wandb:
+  project: "mnist_classifier"
+  run_name: "smallcnn-baseline-run"
