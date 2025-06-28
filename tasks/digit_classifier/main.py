@@ -44,7 +44,7 @@ def convert_cfg(config):
             tune_config[key] = tune.choice(val)
         elif (key == "lr"):
             tune_config[key] = tune.loguniform(val[0], val[1])
-        elif (key == "betas"):
+        elif (key == "beta1" or key == "beta2"):
             tune_config[key] = tune.uniform(val[0], val[1])
         else:
             tune_config[key] = val

@@ -21,7 +21,7 @@ def objective(config):
 
     optim = torch.optim.Adam(model.parameters(),
                              lr=config["lr"],
-                             betas=(float(config["betas"]), 0.999))
+                             betas=(float(config["beta1"]), float(config["beta1"])))
     loss_fn = nn.CrossEntropyLoss()
 
     for _ in range(config["max_num_epochs"]):
