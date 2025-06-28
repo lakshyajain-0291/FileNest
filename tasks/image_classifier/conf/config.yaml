@@ -1,0 +1,11 @@
+# Training configuration
+lr: 0.001
+batch_size: 16
+max_num_epochs: 10
+num_trials: 5
+device: cuda  # Automatically use CUDA; you can also use: ${oc.env:CUDA_VISIBLE_DEVICES, "cpu"}
+
+
+# Weights & Biases configuration
+wandb_project: "Img_classifier"
+wandb_mode: "online"  
