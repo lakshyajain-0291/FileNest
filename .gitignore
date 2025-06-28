@@ -72,7 +72,8 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
-
+wandb/
+outputs/
 # PyInstaller
 *.manifest
 *.spec

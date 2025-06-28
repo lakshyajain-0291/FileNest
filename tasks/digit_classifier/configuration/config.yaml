@@ -1,0 +1,7 @@
+config:
+  "f1": [8]
+  "f2": [6]
+  "lr": [1e-3,1e-2]
+  "betas": [0.9,0.999]
+  "max_num_epochs": 20
+  "num_trials": 3
