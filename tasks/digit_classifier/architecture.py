@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import load_data
 
 
+# Implements a Bottleneck block inspired by MobileNetV2
 class Bottleneck(nn.Module):
     def __init__(self, in_channels=None, out_channels=None, exp_factor=1, stride=1) -> None:
         super().__init__()
@@ -59,18 +59,15 @@ class Classifier(nn.Module):
 
     def forward(self, X):
         out = F.relu6(self.CL1(X))  # 32 maps, 13x13 img
-        # print(out.size())
         out = self.bneck1(out)
-        # print(out.size())
         out = self.bneck2(out)
-        # out = self.bneck3(out)
         out = self.bneck3(out)
+
         for block in self.block1:
             out = block(out)
+
         out = self.bneck4(out)
-        # print(out.size())
         out = out.view(out.size(0), -1)
-        # print(out.size())
         out = self.fc(out)
         return out
 

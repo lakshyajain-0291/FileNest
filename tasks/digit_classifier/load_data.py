@@ -5,7 +5,6 @@ import torchvision.datasets as datasets
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.manual_seed(42)
-ray.init(ignore_reinit_error=True)
 
 mnist_trainset = datasets.MNIST(
     root=r'/home/xyphoes/Desktop/Projects/FileNest _Fork/FileNest_Fork/tasks/digit_classifier/data', train=True, download=False, transform=None)
