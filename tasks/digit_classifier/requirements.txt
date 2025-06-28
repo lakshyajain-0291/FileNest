@@ -1,0 +1,7 @@
+torch
+torchvision
+ray[air]
+ray[tune]
+hydra-core
+omegaconf
+wandb
