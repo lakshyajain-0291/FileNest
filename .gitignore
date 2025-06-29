@@ -1,5 +1,8 @@
 # FileNest .gitignore
 
+#mY STUFF TO IGNORE
+tasks\mnist_classifier\src\ray_tune.py
+
 # Environment variables
 .env
 .env.local

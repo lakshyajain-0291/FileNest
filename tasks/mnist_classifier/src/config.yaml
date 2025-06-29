@@ -1,0 +1,10 @@
+# src/config.yaml
+defaults:
+  - override hydra/job_logging: disabled
+
+train:
+  epochs: 20
+  batch_size: 64
+  lr: 0.003
+  mixed_precision: true
+  device: "cuda"

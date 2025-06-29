@@ -1,0 +1,6 @@
+train:
+  epochs: 20
+  batch_size: 64
+  lr: 0.003
+  mixed_precision: false
+  device: cuda
