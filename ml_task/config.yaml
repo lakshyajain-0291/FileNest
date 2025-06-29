@@ -1,0 +1,33 @@
+# config.yaml
+model:
+  num_classes: 10
+  dropout: 0.3
+
+training:
+  num_epochs: 20
+  device: "cuda"
+
+data:
+  root: "dataset/"
+  batch_sizes: [32, 64, 128]
+  
+augmentation:
+  rotation_degrees: 10
+  translate: [0.1, 0.1]
+  normalize_mean: [0.1307]
+  normalize_std: [0.3081]
+
+hyperparameter_search:
+  lr_min: 1e-4
+  lr_max: 1e-2
+  num_samples: 5
+  metric: "mean_accuracy"
+  mode: "max"
+
+wandb:
+  project: "mnist-minimobilenet"
+
+ray_tune:
+  scheduler:
+    step_size: 7
+    gamma: 0.1
