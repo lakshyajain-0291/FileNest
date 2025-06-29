@@ -26,7 +26,6 @@ The project features:
 ├── main.py
 └── README.md
 
-
 ---
 
 ## 📋 Requirements
