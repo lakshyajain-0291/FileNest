@@ -22,7 +22,7 @@ The model uses depthwise separable convolutions to minimize parameters while mai
 - **Batch Normalization**: Improves training stability
 - **Strategic Channel Progression**: 1→16→32→64→32→10 channels
 
-**Total Parameters**: ~8,500 (well under 10K limit)
+**Total Parameters**: ~9730 (<10K limit)
 
 ## 📁 Project Structure
 
@@ -89,7 +89,7 @@ uv run python evaluate.py
 
 ## 📊 Expected Results
 
-- **Parameters**: ~8,500 (< 10,000 ✅)
+- **Parameters**: ~9,730 (< 10,000 ✅)
 - **Test Accuracy**: >98.5% ✅
 - **Training Time**: 10-15 epochs ✅
 - **GPU Memory**: <1GB
