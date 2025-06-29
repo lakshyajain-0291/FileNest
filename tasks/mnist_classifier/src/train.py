@@ -111,4 +111,4 @@ def evaluate_model(model, loader, device, epoch):
         "epoch": epoch
     })
 
-print("Training run complete inside Docker!")
+# print("Training run complete inside Docker!")
