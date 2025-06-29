@@ -39,7 +39,7 @@ def main(config):
     best_result = results.get_best_result("val_acc", "max")
 
     print(f"Best trial config: {best_result.config}\n\n\n\n\n\n\n")
-    print(f"Best trial final validation metrics: {best_result.metrics}")
+    print(f"Best trial final validation metrics: {best_result.metrics} \n\n\n")
 
 
 def convert_cfg(config):

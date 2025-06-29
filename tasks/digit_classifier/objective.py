@@ -6,6 +6,8 @@ import ray
 import architecture
 import load_data
 import torchinfo
+import os
+from ray.air import session
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -42,33 +44,25 @@ def objective(config):
             loss.backward()
             optim.step()
 
-    model.eval()  # Set model to eval for validation set
+        model.eval()  # Set model to eval for validation set
 
-    # Validation loop here
-    with torch.no_grad():
-        correct = 0
-        val_loss = 0.
-        for xb, yb in val_loader:
-            logits = model(xb)
-            val_loss += loss_fn(logits, yb)
-            ypreds = model.predict_labels(xb)
-            correct += torch.sum(ypreds == yb)
+        # Validation loop here
+        with torch.no_grad():
+            correct = 0
+            val_loss = 0.
+            for xb, yb in val_loader:
+                logits = model(xb)
+                val_loss += loss_fn(logits, yb)
+                ypreds = model.predict_labels(xb)
+                correct += torch.sum(ypreds == yb)
 
-    val_acc = correct / len(load_data.xVal)
-    val_loss = val_loss / len(load_data.xVal)
+        val_acc = correct / len(load_data.xVal)
+        val_loss = val_loss / len(load_data.xVal)
 
-    # Prepare metrics for reporting to wandb and ray tuner
-    metrics = {
-        "val_loss": float(val_loss),
-        "val_acc": float(val_acc),
-        "total_params": total_params
-    }
-
-    # Saves the model and optim states
-    # Create a new empty dir and pass the path for it in path.
-    path = r"./model_saved"
-    torch.save((model.state_dict(), optim.state_dict()),
-               path + r'/checkpoint.pt')
-
-    checkpoint = tune.Checkpoint.from_directory(path)
-    tune.report(metrics, checkpoint=checkpoint)
+        # Prepare metrics for reporting to wandb and ray tuner
+        metrics = {
+            "val_loss": float(val_loss),
+            "val_acc": float(val_acc),
+            "total_params": total_params
+        }
+        tune.report(metrics)
