@@ -1,3 +1,5 @@
+# print("Starting train.py...")
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -9,13 +11,18 @@ from src.model import SmallCNN
 import wandb
 import hydra
 from omegaconf import DictConfig
+from omegaconf import OmegaConf
+
 
 @hydra.main(config_path="../config", config_name="config", version_base=None)
 def train_model(cfg: DictConfig):
     device= torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    wandb.init(project=cfg.wandb.project, name=cfg.wandb.run_name, config=cfg.train)
-
+    wandb.init(
+        project=cfg.wandb.project,
+        name=cfg.wandb.run_name,
+        config=OmegaConf.to_container(cfg.train, resolve=True)
+    )
 
     # Transforms
     transform= transforms.Compose([
@@ -104,3 +111,4 @@ def evaluate_model(model, loader, device, epoch):
         "epoch": epoch
     })
 
+print("Training run complete inside Docker!")

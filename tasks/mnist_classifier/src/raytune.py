@@ -70,7 +70,7 @@ def train_tune(config, base_cfg=None):
 
         test_accuracy= (100.*test_correct)/len(test_loader.dataset)
 
-        # ✅ Log to wandb with explicit step
+        # Log to wandb with explicit step
         if base_cfg:
             wandb.log({
                 "train_accuracy": train_accuracy,
@@ -80,7 +80,7 @@ def train_tune(config, base_cfg=None):
 
         scheduler.step()
 
-        # ✅ Report to Ray Tune with epoch count too
+        # Report to Ray Tune with epoch count too
         tune.report({
             "accuracy": test_accuracy,
             "epoch": epoch

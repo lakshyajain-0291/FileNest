@@ -4,7 +4,7 @@ defaults:
 train:
   epochs: 15
   batch_size: 32
-  learning_rate: 0.0042945
+  learning_rate: 0.002911
   optimizer: "Adam"
   scheduler_step_size: 5
   scheduler_gamma: 0.5
