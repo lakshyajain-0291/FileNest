@@ -1,0 +1,31 @@
+{
+  "os": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "python": "CPython 3.12.3",
+  "startedAt": "2025-06-29T08:23:06.442029Z",
+  "program": "/mnt/c/Users/reete/GoLang/mongoapi/FileNest/ml_task/ml_task_nn.py",
+  "codePath": "ml_task/ml_task_nn.py",
+  "git": {
+    "remote": "git@github.com:IshatV412/FileNest.git",
+    "commit": "fcebb8e1e8250e16cb6cf1e6b5593c2bc96994ac"
+  },
+  "email": "b24me1034@iitj.ac.in",
+  "root": "/mnt/c/Users/reete/GoLang/mongoapi/FileNest/ml_task",
+  "host": "DESKTOP-7NSUMT9",
+  "executable": "/mnt/c/Users/reete/GoLang/mongoapi/FileNest/ml_task/mltask/bin/python",
+  "codePathLocal": "ml_task_nn.py",
+  "cpu_count": 4,
+  "cpu_count_logical": 8,
+  "disk": {
+    "/": {
+      "total": "1081101176832",
+      "used": "6274719744"
+    }
+  },
+  "memory": {
+    "total": "3974332416"
+  },
+  "cpu": {
+    "count": 4,
+    "countLogical": 8
+  }
+}

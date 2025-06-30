@@ -86,7 +86,7 @@ FileNest/
 
 ```bash
 # Clone the repository
-git clone https://github.com/lakshyajain-0291/FileNest.git
+git clone https://github.com/AISocietyIITJ/FileNest.git
 cd FileNest
 
 # Set up backend dependencies
