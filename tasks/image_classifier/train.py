@@ -20,10 +20,7 @@ def train_mobilenet_tune(config):
         model = nn.DataParallel(model)
 
     # Select optimizer based on config
-    optimizer = {
-        "Adam": optim.Adam,
-        "SGD": lambda params, lr: optim.SGD(params, lr=lr, momentum=0.9),
-    }[config["optim"]](model.parameters(), lr=config["lr"])
+    optimizer = optim.Adam(model.parameters(),lr = config["lr"])
 
     criterion = nn.CrossEntropyLoss()
 

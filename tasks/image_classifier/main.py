@@ -14,7 +14,16 @@ def with_data_loader(cfg):
     cfg["test_loader"] = mnist_test_loader(batch_size=cfg["batch_size"])
     return cfg
 
-
+search_space = {
+    "lr": tune.loguniform(1e-4, 1e-2),         # Learning rate sampled log-uniformly between 0.0001 and 0.01
+    "batch_size": tune.choice([64, 128]),      # Batch size sampled from 64 or 128
+    "max_num_epochs": 15,                      # Fixed number of epochs
+    "num_trials": 2,                           # Number of Ray Tune trials (not part of search space per trial)
+    "device": "cuda",  # Device setting
+    "optim": "Adam",                           # Optimizer choice (fixed as Adam)
+    "wandb_project": "mobilenetv2-mnist",      # WandB project name
+    "wandb_mode": "online",                    # WandB logging mode
+}
 # Main entry point, managed by Hydra for config management
 @hydra.main(config_path="conf", config_name="config", version_base=None)
 def main(cfg: DictConfig):
@@ -33,7 +42,7 @@ def main(cfg: DictConfig):
             num_samples=cfg["num_trials"],  # Number of Ray Tune trials
         ),
         run_config=RunConfig(name="mobilenet_mnist"),
-        param_space=cfg,         # Pass config as search space
+        param_space=search_space,         # Pass config as search space
     )
 
     # Run hyperparameter search
