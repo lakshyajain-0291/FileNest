@@ -3,13 +3,14 @@ package helpers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"general-peer/pkg/consts"
 	"general-peer/pkg/models"
 	"log"
 	"net"
 )
 
-const EMBED_DIM = 128
-const MAX_MSG_SIZE = 10240
+
 
 func InitPeer(peer *models.Peer) (*net.UDPConn, *net.UDPAddr){
 	peerAddr := &net.UDPAddr{IP: net.ParseIP(peer.IP), Port: peer.Port}
@@ -24,7 +25,7 @@ func InitPeer(peer *models.Peer) (*net.UDPConn, *net.UDPAddr){
 }
 
 func ListenForMessage(conn *net.UDPConn, msgChannel *chan models.Message) error{
-	msgb := make([]byte, MAX_MSG_SIZE)
+	msgb := make([]byte, consts.MAX_MSG_SIZE)
 	msg := &models.Message{}
 
 	for {
@@ -41,7 +42,7 @@ func ListenForMessage(conn *net.UDPConn, msgChannel *chan models.Message) error{
 
 	switch (msg.Type) {
 	case "query": 
-		if len(msg.QueryEmbed) != EMBED_DIM { 
+		if len(msg.QueryEmbed) != consts.EMBED_DIM { 
 			return errors.New("query embedding dimensions do not match")
 		}
 
@@ -57,7 +58,28 @@ func ListenForMessage(conn *net.UDPConn, msgChannel *chan models.Message) error{
 	log.Printf("going to put msg into msgChannel")
 	*msgChannel <- *msg
 
-	msgb = make([]byte, 10000) // resets msgb to take in further values
+	msgb = make([]byte, consts.MAX_MSG_SIZE) // resets msgb to take in further values
 	msg = &models.Message{} // resets msg to take in further values
 	}
+
+}
+
+func ForwardQuery(peerId int, queryEmbed []float64, startPeerAddr *net.UDPAddr, genPeerConn *net.UDPConn) error {
+	if len(queryEmbed) != consts.EMBED_DIM {
+		return fmt.Errorf("embedding dimension mismatch: expected %v", consts.EMBED_DIM)
+	}
+
+	msg := models.MessageToPeer{QueryEmbed: queryEmbed, PeerId: peerId}
+	msgBytes, err := json.Marshal(msg)
+	if(err != nil){
+		return fmt.Errorf("error during marshalling of msg: %v", err.Error())
+	}
+
+	n,err := genPeerConn.WriteToUDP(msgBytes, startPeerAddr)
+	if(err != nil){
+		return fmt.Errorf("error while writing to starting peer: %v", err.Error())
+	} else {
+		log.Printf("Written %v bytes to %+v", n, startPeerAddr)
+	}
+	return nil
 }

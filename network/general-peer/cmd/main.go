@@ -9,15 +9,14 @@ import (
 	"time"
 )
 
-//Only for testing
 func main() {
-	// Sample user message (correct 128-dim query_embed)
+	// Sample query message
 	queryMsg := models.Message{
 		Type: "query",
 		QueryEmbed: testing.GenerateFakeVector(128),
 	}
 
-	// Sample peer message (correct 128-dim embed + metadata)
+	// Sample peer message
 	peerMsg := models.Message{
 		Type: "peer",
 		QueryEmbed: testing.GenerateFakeVector(128),
@@ -41,8 +40,10 @@ func main() {
 		log.Printf("error during marshalling of message: %v", err.Error())
 	}
 
-	generalPeer := &models.Peer{ID: "abc", IP: "127.0.0.1", Port: 8080}
+	generalPeer := &models.Peer{ID: 123, IP: "127.0.0.1", Port: 8080}
 	conn, addr := helpers.InitPeer(generalPeer)
+	somePeer := &models.Peer{ID: 345, IP: "127.0.0.1", Port: 8081}
+	conn_, addr_ := helpers.InitPeer(somePeer)
 
 	msgChan := make(chan models.Message)
 	go helpers.ListenForMessage(conn, &msgChan)
@@ -55,6 +56,10 @@ func main() {
 	log.Printf("Sending Query message")
 	conn.WriteToUDP(marshalQueryMsg, addr)
 
+	err = helpers.ForwardQuery(123,peerMsg.QueryEmbed, addr_, conn_)
+	if(err != nil){
+		log.Println(err.Error())
+	}
 	for {
 		log.Printf("Recieved Message: %+v", <- msgChan)
 	}

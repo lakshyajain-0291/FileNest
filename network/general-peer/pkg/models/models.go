@@ -2,7 +2,7 @@ package models
 
 type Peer struct {
 	
-	ID string
+	ID int
 	IP string
 	Port int
 }
@@ -15,6 +15,11 @@ type Message struct {
 	NextPeerId int  `json:"next_peer_id"`
 	FileMetadata FileMetadata `json:"file_metadata"`
 	IsProcessed bool `json:"is_processed"`
+}
+
+type MessageToPeer struct {
+	QueryEmbed []float64 `json:"query_embed"`
+	PeerId int `json:"next_peer_id"`
 }
 
 type FileMetadata struct {
