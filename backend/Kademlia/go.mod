@@ -4,7 +4,7 @@ go 1.24.4
 
 require (
 	github.com/libp2p/go-libp2p v0.42.0
-	github.com/libp2p/go-libp2p-core v0.20.1
+	github.com/libp2p/go-tcp-transport v0.6.1
 	github.com/multiformats/go-multiaddr v0.16.0
 )
 
@@ -32,6 +32,7 @@ require (
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
 	github.com/libp2p/go-flow-metrics v0.2.0 // indirect
 	github.com/libp2p/go-libp2p-asn-util v0.4.1 // indirect
+	github.com/libp2p/go-libp2p-core v0.20.1 // indirect
 	github.com/libp2p/go-msgio v0.3.0 // indirect
 	github.com/libp2p/go-netroute v0.2.2 // indirect
 	github.com/libp2p/go-reuseport v0.4.0 // indirect
