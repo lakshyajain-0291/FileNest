@@ -8,10 +8,10 @@ text_model = Llama.from_pretrained(
     filename="nomic-embed-text-v1.5.Q8_0.gguf",
     embedding=True,
     verbose=False,
-    n_gpu_layers=5)
+    n_gpu_layers=-1)
 
 
-def text_embedder(texts):
+def text_embedder(texts: list[str]) -> list[np.ndarray]:
     t1 = time.time()
 
     embeds = []
