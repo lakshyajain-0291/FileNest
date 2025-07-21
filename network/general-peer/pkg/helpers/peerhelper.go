@@ -2,7 +2,6 @@ package helpers
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"general-peer/pkg/consts"
 	"general-peer/pkg/models"
@@ -10,76 +9,108 @@ import (
 	"net"
 )
 
-
-
-func InitPeer(peer *models.Peer) (*net.UDPConn, *net.UDPAddr){
-	peerAddr := &net.UDPAddr{IP: net.ParseIP(peer.IP), Port: peer.Port}
-
-	conn, err := net.ListenUDP("udp", peerAddr)
-	if(err != nil){
-		log.Printf("Failed to initialize peer with given params with err: %v", err.Error())
-		return nil, nil
+func InitTCPListener(address string) net.Listener {
+	listener, err := net.Listen("tcp", address)
+	if err != nil {
+		log.Fatalf("Failed to start TCP listener: %v", err)
 	}
-	log.Printf("Peer successfully initialized with given params: %v", peerAddr)
-	return conn, peerAddr
+	log.Printf("Listening on TCP %s", address)
+	return listener
 }
 
-func ListenForMessage(conn *net.UDPConn, msgChannel *chan models.Message) error{
-	msgb := make([]byte, consts.MAX_MSG_SIZE)
-	msg := &models.Message{}
-
+func ListenForMessage(listener net.Listener, msgChan chan models.Message) {
 	for {
-		n,incomingAddr, err := conn.ReadFromUDP(msgb)
-		if(err != nil){
-			log.Printf("Error during reading of message: %v\n", err.Error())
+		conn, err := listener.Accept()
+		if err != nil {
+			log.Printf("Failed to accept connection: %v", err)
+			continue
 		}
-
-		err = json.Unmarshal(msgb[:n], msg)
-		if(err != nil){
-			log.Printf("Error during unmarshalling of read data: %v\n", err.Error())
-		}
-		log.Printf("Recieved a message of bytes: %v from address: %v\n", n, incomingAddr)
-
-	switch (msg.Type) {
-	case "query": 
-		if len(msg.QueryEmbed) != consts.EMBED_DIM { 
-			return errors.New("query embedding dimensions do not match")
-		}
-
-	case "peer": 
-		if msg.CurrentPeerID <= 0 { // checks if the peer ID is valid or not
-			return errors.New("invalid peer ID")
-		}
-
-		if (msg.FileMetadata.Name == "" && msg.Depth == 4) { //checks for empty files
-			return errors.New("file name is required")
-		}
+		go handleConnection(conn, msgChan)
 	}
-	log.Printf("going to put msg into msgChannel")
-	*msgChannel <- *msg
-
-	msgb = make([]byte, consts.MAX_MSG_SIZE) // resets msgb to take in further values
-	msg = &models.Message{} // resets msg to take in further values
-	}
-
 }
 
-func ForwardQuery(peerId int, queryEmbed []float64, startPeerAddr *net.UDPAddr, genPeerConn *net.UDPConn) error {
+func handleConnection(conn net.Conn, msgChan chan models.Message) {
+	defer conn.Close()
+
+	buf := make([]byte, consts.MAX_MSG_SIZE)
+	n, err := conn.Read(buf)
+	if err != nil {
+		log.Printf("Read error: %v", err)
+		return
+	}
+
+	var msg models.Message
+	err = json.Unmarshal(buf[:n], &msg)
+	if err != nil {
+		log.Printf("Unmarshal error: %v", err)
+		return
+	}
+
+	switch msg.Type {
+	case "query":
+		if len(msg.QueryEmbed) != consts.EMBED_DIM {
+			log.Println("Invalid query vector size")
+			return
+		}
+	case "peer":
+		if msg.CurrentPeerID <= 0 {
+			log.Println("Invalid peer ID")
+			return
+		}
+		if msg.FileMetadata.Name == "" && msg.Depth == 4 {
+			log.Println("Missing file name at depth 4")
+			return
+		}
+	}
+
+	msgChan <- msg
+}
+
+func SendTCPMessage(peerAddr string, msg models.Message) error {
+	conn, err := net.Dial("tcp", peerAddr)
+	if err != nil {
+		return fmt.Errorf("dial error: %v", err)
+	}
+	defer conn.Close()
+
+	msgBytes, err := json.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("marshal error: %v", err)
+	}
+
+	_, err = conn.Write(msgBytes)
+	if err != nil {
+		return fmt.Errorf("write error: %v", err)
+	}
+	log.Printf("Sent %d bytes to %s", len(msgBytes), peerAddr)
+	return nil
+}
+
+func ForwardQueryTCP(peerId int, queryEmbed []float64, peerAddr string) error {
 	if len(queryEmbed) != consts.EMBED_DIM {
 		return fmt.Errorf("embedding dimension mismatch: expected %v", consts.EMBED_DIM)
 	}
 
-	msg := models.MessageToPeer{QueryEmbed: queryEmbed, PeerId: peerId}
-	msgBytes, err := json.Marshal(msg)
-	if(err != nil){
-		return fmt.Errorf("error during marshalling of msg: %v", err.Error())
+	msg := models.MessageToPeer{
+		QueryEmbed: queryEmbed,
+		PeerId:     peerId,
 	}
 
-	n,err := genPeerConn.WriteToUDP(msgBytes, startPeerAddr)
-	if(err != nil){
-		return fmt.Errorf("error while writing to starting peer: %v", err.Error())
-	} else {
-		log.Printf("Written %v bytes to %+v", n, startPeerAddr)
+	msgBytes, err := json.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("marshal error: %v", err)
 	}
+
+	conn, err := net.Dial("tcp", peerAddr)
+	if err != nil {
+		return fmt.Errorf("dial error: %v", err)
+	}
+	defer conn.Close()
+
+	n, err := conn.Write(msgBytes)
+	if err != nil {
+		return fmt.Errorf("write error: %v", err)
+	}
+	log.Printf("Forwarded %d bytes to %s (peerId %d)", n, peerAddr, peerId)
 	return nil
 }
