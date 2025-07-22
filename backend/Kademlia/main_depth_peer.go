@@ -1,114 +1,34 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
-	"log"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
+    findvalue "dht/RPC/find_value"
+    "fmt"
+    "log"
+    "os"
+    "os/signal"
+    "syscall"
 
-	"github.com/libp2p/go-libp2p"
-	"github.com/libp2p/go-libp2p/core/network"
-	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
+    "github.com/libp2p/go-libp2p"
+    "github.com/libp2p/go-libp2p/p2p/transport/tcp"
 )
 
-type EmbeddingSearchRequest struct {
-	Source       string    `json:"source"`
-	SourceID     int       `json:"source_id"`
-	Embed        []float64 `json:"embed"`
-	PrevDepth    int       `json:"prev_depth"`
-	QueryType    string    `json:"query_type"`
-	Threshold    float64   `json:"threshold"`
-	ResultsCount int       `json:"results_count"`
-}
+func main() {
+    host, err := libp2p.New(libp2p.Transport(tcp.NewTCPTransport))
 
-type EmbeddingSearchResponse struct {
-	Type          string    `json:"type"`
-	QueryEmbed    []float64 `json:"query_embed"`
-	Depth         int       `json:"depth"`
-	CurrentPeerID int       `json:"current_peer_id"`
-	NextPeerID    int       `json:"next_peer_id"`
-	FileMetadata  Metadata  `json:"file_metadata"`
-	IsProcessed   bool      `json:"is_processed"`
-}
+    if err != nil {
+        log.Fatal(err)
+        // return err
+    }
+    defer host.Close()
 
-type Metadata struct {
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-}
+    // Register a stream handler to intercept messages
+    host.SetStreamHandler("/jsonmessages/1.0.0", findvalue.HandleJSONMessages)
 
-func handleJSONMessages(s network.Stream) {
-	defer s.Close()
+    fmt.Printf("Host ID: %s\n", host.ID())
+    fmt.Printf("Listening on: %v\n", host.Addrs())
 
-	decoder := json.NewDecoder(s)
-	encoder := json.NewEncoder(s)
-
-	for {
-		var msg EmbeddingSearchRequest
-		err := decoder.Decode(&msg)
-		if err != nil {
-			fmt.Printf("Stream closed: %v\n", err)
-			return
-		}
-
-		fmt.Printf("Intercepted JSON message: %+v\n", msg)
-
-		current_depth := msg.PrevDepth + 1
-		var current_peer_id int // need to pass the peer id of the depth peer
-
-		if msg.QueryType == "search" {
-			// Send acknowledgment
-			if current_depth != 4 {
-				var next_peer_id int // use the find_node rpc to fetch the metadata of the peer to which the request has to be forwarded
-				ack := EmbeddingSearchResponse{Type: msg.QueryType, QueryEmbed: msg.Embed, Depth: current_depth,
-					CurrentPeerID: current_peer_id, NextPeerID: next_peer_id, IsProcessed: false}
-				encoder.Encode(ack)
-			} else {
-				// will iterate the following block of code over the number of records in the database
-				metadata := Metadata{} //need to fetch the indexed file metadata from the db.
-				ack := EmbeddingSearchResponse{Type: msg.QueryType, QueryEmbed: msg.Embed, Depth: current_depth,
-					CurrentPeerID: current_peer_id, FileMetadata: metadata, IsProcessed: true}
-				encoder.Encode(ack)
-			}
-		} else {
-			// Send acknowledgment
-			if current_depth != 4 {
-				var next_peer_id int // use the find_node rpc to fetch the metadata of the peer to which the request has to be forwarded
-				ack := EmbeddingSearchResponse{Type: msg.QueryType, QueryEmbed: msg.Embed, Depth: current_depth,
-					CurrentPeerID: current_peer_id, NextPeerID: next_peer_id, IsProcessed: false}
-				encoder.Encode(ack)
-			} else {
-				// will iterate the following block of code over the number of records in the database
-				// need to index the file under the peer id. will use the store rpc .
-				ack := EmbeddingSearchResponse{} // need to modify the api so that acknowledgment for updation of file can be included
-				encoder.Encode(ack)
-			}
-		}
-
-	}
-}
-
-func main(){
-
-	host, err := libp2p.New(libp2p.Transport(tcp.NewTCPTransport))
-
-	if err != nil {
-		log.Fatal(err)
-		// return err
-	}
-	defer host.Close()
-
-	// Register a stream handler to intercept messages
-	host.SetStreamHandler("/jsonmessages/1.0.0", handleJSONMessages)
-
-	fmt.Printf("Host ID: %s\n", host.ID())
-	fmt.Printf("Listening on: %v\n", host.Addrs())
-
-	// Keep running
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	<-sigCh
+    // Keep running
+    sigCh := make(chan os.Signal, 1)
+    signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+    <-sigCh
 }
