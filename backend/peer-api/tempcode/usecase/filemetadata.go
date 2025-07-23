@@ -36,7 +36,7 @@ func (svc *FileService) HandleWSMessage(msg []byte) ([]byte, error) {
 		Threshold    float64   `json:"threshold"`
 		ResultsCount int       `json:"results_count"`
 	}
-	if err := json.Unmarshal(msg, &searchReq); err != nil || searchReq.QueryType != "search" {
+	if err := json.Unmarshal(msg, &searchReq); err != nil || !(searchReq.QueryType == "search" || searchReq.QueryType == "train") {
 		return json.Marshal(map[string]interface{}{"error": "invalid request format or query_type"})
 	}
 	// Perform similarity search
@@ -47,21 +47,49 @@ func (svc *FileService) HandleWSMessage(msg []byte) ([]byte, error) {
 	}
 	// Compute cosine similarity for each peer
 	bestSim := -1.0
-	bestPeerID := 0
+	var bestPeer repository.NextPeer
 	for _, peer := range peers {
 		sim := cosineSimilarity(searchReq.Embed, peer.Embedding)
 		if sim > bestSim && sim >= searchReq.Threshold {
 			bestSim = sim
-			bestPeerID = peer.PeerID
+			bestPeer = peer
 		}
 	}
+
+	if searchReq.QueryType == "train" {
+		if bestSim >= searchReq.Threshold && bestPeer.PeerID != 0 {
+			n := bestPeer.Nodaught
+			old := bestPeer.Embedding
+			new := searchReq.Embed
+
+			if len(old) != len(new) {
+				return json.Marshal(map[string]interface{}{"error": "embedding dimension mismatch"})
+			}
+
+			updated := make([]float64, len(old))
+			for i := range old {
+				updated[i] = (old[i]*float64(n) + new[i]) / float64(n+1)
+			}
+
+			err := nextRepo.UpdatePeerEmbedding(bestPeer.PeerID, updated, n+1)
+			if err != nil {
+				return json.Marshal(map[string]interface{}{"error": "failed to update embedding: " + err.Error()})
+			}
+		} else {
+			err := nextRepo.InsertNewPeer(searchReq.Embed)
+			if err != nil {
+				return json.Marshal(map[string]interface{}{"error": "failed to insert new daughter peer: " + err.Error()})
+			}
+		}
+	}
+
 	// Build response
 	resp := map[string]interface{}{
 		"type":            "search_result",
 		"query_embed":     searchReq.Embed,
 		"depth":           searchReq.PrevDepth,
 		"current_peer_id": searchReq.SourceID,
-		"next_peer_id":    bestPeerID,
+		"next_peer_id":    bestPeer.PeerID,
 		"is_processed":    bestSim >= 0,
 	}
 	return json.Marshal(resp)
