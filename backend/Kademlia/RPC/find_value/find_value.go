@@ -22,7 +22,7 @@ type EmbeddingSearchRequest struct {
 	QueryType    string    `json:"query_type"`
 	Threshold    float64   `json:"threshold"`
 	ResultsCount int       `json:"results_count"`
-	TargetPeerID int       `json:"target_peer_id"`
+	TargetPeerID int       `json:"target_peer_id"` //the target peer id is required at all times to find the nearest nodes
 }
 
 type EmbeddingSearchResponse struct {
@@ -101,9 +101,12 @@ func HandleJSONMessages(s network.Stream) {
 					CurrentPeerID: current_peer_id, NextPeerID: file.PeerID(), IsProcessed: false, Found: status}
 					encoder.Encode(ack)
 				} else {
-					// will iterate the following block of code over the number of records in the database
 					// need to index the file under the peer id. will use the store rpc .
-					ack := EmbeddingSearchResponse{} // need to modify the api so that acknowledgment for updation of file can be included
+					
+					
+
+					ack := EmbeddingSearchResponse{Type: msg.QueryType, QueryEmbed: msg.Embed, Depth: current_depth,
+					CurrentPeerID: current_peer_id, IsProcessed: true, Found: status} 
 					encoder.Encode(ack)
 				}				
 			}
