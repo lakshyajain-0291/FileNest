@@ -93,7 +93,7 @@ func ForwardQueryTCP(peerId int, queryEmbed []float64, peerAddr string) error {
 
 	msg := models.MessageToPeer{
 		QueryEmbed: queryEmbed,
-		PeerId:     peerId,
+		SourcePeerID:     peerId,
 	}
 
 	msgBytes, err := json.Marshal(msg)
