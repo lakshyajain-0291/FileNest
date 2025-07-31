@@ -9,8 +9,15 @@ import (
 	"sort"
 	"sync"
 	"time"
+<<<<<<< HEAD
+
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+
+=======
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	"github.com/libp2p/go-libp2p/core/host"
+>>>>>>> c1ac24136fe57d94ff4a7fca16aa4e44cc99726d
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 )
@@ -64,6 +71,9 @@ type RoutingTable struct {
 	tagVectors map[int][]TagVector  // Depth mapped to list of tag vectors
 	embeddings map[string][]float64 // File hash mapped to embedding
 
+	// Database connection
+	db *gorm.DB
+
 	// Callbacks
 	onPeerAdded   func(contact *Contact)
 	onPeerRemoved func(contact *Contact)
@@ -88,6 +98,22 @@ func NewRoutingTable(localID peer.ID, host host.Host) *RoutingTable {
 			replacements: make([]*Contact, 0, BucketSize), //list of all the useless peers in the bucet
 		}
 	}
+
+	// Initialize database connection
+	db, err := gorm.Open(sqlite.Open("routing_table.db"), &gorm.Config{})
+	if err != nil {
+		log.Printf("Failed to connect to database: %v", err)
+	} else {
+		rt.db = db
+		// Auto migrate the schema
+		err = db.AutoMigrate(&RoutingTableEntry{})
+		if err != nil {
+			log.Printf("Failed to migrate database: %v", err)
+		}
+	}
+
+	// Load existing entries from database
+	//rt.LoadFromDatabase()
 
 	// Start maintenance routines
 	go rt.maintainBuckets(host)
@@ -141,6 +167,19 @@ func (rt *RoutingTable) AddPeer(peerID peer.ID, addr multiaddr.Multiaddr) error 
 
 	bucket.mutex.Lock()
 	defer bucket.mutex.Unlock()
+
+	// Update database
+	if rt.db != nil {
+		entry := RoutingTableEntry{
+			BucketIndex: bucketIndex,
+			PeerID:      peerID.String(),
+			Address:     addr.String(),
+			LastSeen:    time.Now(),
+		}
+		rt.db.Where("peer_id = ?", peerID.String()).
+			Assign(entry).
+			FirstOrCreate(&entry)
+	}
 
 	// Check if peer already exists
 	for i, contact := range bucket.contacts {
@@ -201,6 +240,11 @@ func (rt *RoutingTable) RemovePeer(peerID peer.ID) {
 
 	bucket.mutex.Lock()
 	defer bucket.mutex.Unlock()
+
+	// Remove from database
+	if rt.db != nil {
+		rt.db.Where("peer_id = ?", peerID.String()).Delete(&RoutingTableEntry{})
+	}
 
 	for i, contact := range bucket.contacts {
 		if contact.ID == peerID {
@@ -348,11 +392,20 @@ func Ping(ctx context.Context, host host.Host, contact *Contact) (ping.Result, e
 
 // refreshBuckets refreshes stale buckets
 
+<<<<<<< HEAD
+		// Check if bucket needs refresh
+		if time.Since(bucket.lastRefresh) > RefreshInterval {
+
+			go rt.performBucketRefresh(i)
+			bucket.lastRefresh = time.Now()
+		}
+=======
 func (rt *RoutingTable) refreshBuckets(host host.Host) {
     for i, bucket := range rt.buckets {
         bucket.mutex.RLock()
         timeSinceLast := time.Since(bucket.lastRefresh)
         bucket.mutex.RUnlock()
+>>>>>>> c1ac24136fe57d94ff4a7fca16aa4e44cc99726d
 
         if timeSinceLast > RefreshInterval {
             go rt.performBucketRefresh(i)
@@ -399,8 +452,17 @@ func (rt *RoutingTable) refreshBuckets(host host.Host) {
 func (rt *RoutingTable) performBucketRefresh(bucketIndex int) {
 	// This would typically generate a random target ID in the bucket's range
 	// and perform a FIND_NODE lookup to discover new peers
-	// Implementation depends on your specific P2P protocol
+
 	log.Printf("Refreshing bucket %d", bucketIndex)
+}
+
+// RoutingTableEntry our databse model
+type RoutingTableEntry struct {
+	gorm.Model
+	BucketIndex int    `gorm:"index"`
+	PeerID      string `gorm:"uniqueIndex"`
+	Address     string
+	LastSeen    time.Time
 }
 
 // FileNest specific methods
@@ -489,6 +551,35 @@ func (rt *RoutingTable) Size() int {
 		bucket.mutex.RUnlock()
 	}
 	return count
+}
+
+// LoadFromDatabase loads the routing table entries from SQLite database
+func (rt *RoutingTable) LoadFromDatabase() error {
+	db, err := gorm.Open(sqlite.Open("routing_table.db"), &gorm.Config{})
+	if err != nil {
+		return fmt.Errorf("failed to open database: %v", err)
+	}
+
+	var entries []RoutingTableEntry
+	result := db.Find(&entries)
+	if result.Error != nil {
+		return fmt.Errorf("failed to load entries: %v", result.Error)
+	}
+
+	for _, entry := range entries {
+		peerID, err := peer.Decode(entry.PeerID)
+		if err != nil {
+			continue
+		}
+		addr, err := multiaddr.NewMultiaddr(entry.Address)
+		if err != nil {
+			continue
+		}
+
+		rt.AddPeer(peerID, addr)
+	}
+
+	return nil
 }
 
 // Close stops the routing table and cleanup
