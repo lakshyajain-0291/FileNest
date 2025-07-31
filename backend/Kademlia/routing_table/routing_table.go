@@ -9,7 +9,8 @@ import (
 	"sort"
 	"sync"
 	"time"
-
+	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
+	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 )
@@ -68,7 +69,7 @@ type RoutingTable struct {
 	onPeerRemoved func(contact *Contact)
 }
 
-func NewRoutingTable(localID peer.ID) *RoutingTable {
+func NewRoutingTable(localID peer.ID, host host.Host) *RoutingTable {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	rt := &RoutingTable{
@@ -89,7 +90,7 @@ func NewRoutingTable(localID peer.ID) *RoutingTable {
 	}
 
 	// Start maintenance routines
-	go rt.maintainBuckets()
+	go rt.maintainBuckets(host)
 
 	return rt
 }
@@ -246,7 +247,7 @@ func (rt *RoutingTable) FindClosestPeers(targetID peer.ID, k int) []*Contact { /
 				if contact.IsAlive {
 					candidates = append(candidates, contact)
 				}
-		}
+			}
 			rt.buckets[bucketIndex-i].mutex.RUnlock()
 		}
 
@@ -309,7 +310,7 @@ func (rt *RoutingTable) GetAllPeers() []*Contact {
 }
 
 // maintainBuckets performs periodic maintenance on buckets
-func (rt *RoutingTable) maintainBuckets() {
+func (rt *RoutingTable) maintainBuckets(host host.Host) {
 	ticker := time.NewTicker(RefreshInterval)
 	defer ticker.Stop()
 
@@ -318,42 +319,82 @@ func (rt *RoutingTable) maintainBuckets() {
 		case <-rt.ctx.Done():
 			return
 		case <-ticker.C:
-			rt.refreshBuckets()
+			rt.refreshBuckets(host)
 		}
 	}
+}
+
+// acts as the ping rpc
+func Ping(ctx context.Context, host host.Host, contact *Contact) (ping.Result, error) {
+	fullAddr := multiaddr.Join(contact.Address, multiaddr.StringCast("/p2p/"+contact.ID.String()))
+	addrInfo, err := peer.AddrInfoFromP2pAddr(fullAddr)
+	if err != nil {
+		return ping.Result{}, fmt.Errorf("invalid addrinfo: %w", err)
+	}
+
+	if err := host.Connect(ctx, *addrInfo); err != nil {
+		return ping.Result{}, fmt.Errorf("connect failed: %w", err)
+	}
+
+	pingService := ping.NewPingService(host)
+	result := <-pingService.Ping(ctx, addrInfo.ID)
+
+	if result.Error != nil {
+		return result, result.Error
+	}
+
+	return result, nil
 }
 
 // refreshBuckets refreshes stale buckets
-func (rt *RoutingTable) refreshBuckets() {
-	for i, bucket := range rt.buckets {
-		bucket.mutex.Lock()
 
-		// Check if bucket needs refresh
-		if time.Since(bucket.lastRefresh) > RefreshInterval {
-			// Generate a random ID in this bucket's range and perform lookup
-			// This is a simplified version - in practice, you'd generate
-			// a proper random ID within the bucket's key space
-			go rt.performBucketRefresh(i)
-			bucket.lastRefresh = time.Now()
-		}
+func (rt *RoutingTable) refreshBuckets(host host.Host) {
+    for i, bucket := range rt.buckets {
+        bucket.mutex.RLock()
+        timeSinceLast := time.Since(bucket.lastRefresh)
+        bucket.mutex.RUnlock()
 
-		// Remove stale contacts
-		var activeContacts []*Contact
-		for _, contact := range bucket.contacts {
-			if time.Since(contact.LastSeen) < RefreshInterval*2 {
-				activeContacts = append(activeContacts, contact)
-			} else {
-				if rt.onPeerRemoved != nil {
-					rt.onPeerRemoved(contact)
-				}
-			}
-		}
-		bucket.contacts = activeContacts
+        if timeSinceLast > RefreshInterval {
+            go rt.performBucketRefresh(i)
+            bucket.mutex.Lock()
+            bucket.lastRefresh = time.Now()
+            bucket.mutex.Unlock()
+        }
 
-		bucket.mutex.Unlock()
-	}
+        // Ping peers concurrently and prune unresponsive ones
+        bucket.mutex.RLock()
+        contacts := make([]*Contact, len(bucket.contacts))
+        copy(contacts, bucket.contacts)
+        bucket.mutex.RUnlock()
+
+        var wg sync.WaitGroup
+        var mu sync.Mutex
+        var activeContacts []*Contact
+
+        ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+        defer cancel()
+
+        for _, contact := range contacts {
+            wg.Add(1)
+            go func(c *Contact) {
+                defer wg.Done()
+                result, err := Ping(ctx, host, c)
+                if err == nil && result.Error == nil {
+                    mu.Lock()
+                    activeContacts = append(activeContacts, c)
+                    mu.Unlock()
+                } else if rt.onPeerRemoved != nil {
+                    rt.onPeerRemoved(c)
+                }
+            }(contact)
+        }
+        wg.Wait()
+
+        bucket.mutex.Lock()
+        bucket.contacts = activeContacts
+        bucket.mutex.Unlock()
+    }
 }
-
 // performBucketRefresh performs a lookup to refresh a bucket
 func (rt *RoutingTable) performBucketRefresh(bucketIndex int) {
 	// This would typically generate a random target ID in the bucket's range
@@ -492,4 +533,3 @@ func (rt *RoutingTable) PrintRoutingTable() {
 	fmt.Printf("stord embeddings: %d\n", len(rt.embeddings))
 
 }
- 

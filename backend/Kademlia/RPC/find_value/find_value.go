@@ -37,7 +37,7 @@ type EmbeddingSearchResponse struct {
 	Depth         int       `json:"depth"`
 	CurrentPeerID int       `json:"current_peer_id"`
 	NextPeerID    int       `json:"next_peer_id"`
-	FileMetadata  Metadata  `json:"file_metadata"`
+	FileMetadata  store.Record  `json:"file_metadata"`
 	IsProcessed   bool      `json:"is_processed"` //this is to check if the query has the reached the D4 node or not
 	Found         bool      `json:"found"`        //this is to confirm if the target peer id for a peer at any depth has been found or not
 }
@@ -97,10 +97,16 @@ func HandleJSONMessages(s network.Stream, current_peer_id int, rt *routing_table
 					encoder.Encode(ack)
 				} else {
 					// will iterate the following block of code over the number of records in the database
-					metadata := Metadata{} //need to fetch the indexed file metadata from the db.
-					ack := EmbeddingSearchResponse{Type: msg.QueryType, QueryEmbed: msg.Embed, Depth: current_depth,
-						CurrentPeerID: current_peer_id, FileMetadata: metadata, IsProcessed: true, Found: status}
-					encoder.Encode(ack)
+					records, err := store.ReadAll("Filenest")
+					if err != nil {
+						fmt.Println("There was an error reading the stored values: %w", err)
+					}
+					for _, record := range records{
+						// metadata := Metadata{} //need to fetch the indexed file metadata from the db.
+						ack := EmbeddingSearchResponse{Type: msg.QueryType, QueryEmbed: msg.Embed, Depth: current_depth,
+							CurrentPeerID: current_peer_id, FileMetadata: record, IsProcessed: true, Found: status}
+						encoder.Encode(ack)
+					}
 				}
 			}
 
