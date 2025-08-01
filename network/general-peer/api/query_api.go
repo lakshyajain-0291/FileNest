@@ -1,60 +1,55 @@
 package api
 
 import (
-	"context"
 	"encoding/json"
-
-	"github.com/libp2p/go-libp2p/core/host"
-	"github.com/libp2p/go-libp2p/core/network"
-	"github.com/libp2p/go-libp2p/core/peer"
+	"fmt"
+	"general-peer/pkg/models"
+	"net"
+	"net/http"
+	"strconv"
 )
 
-type QueryRequest struct {
-	Query string `json:"query"`
-}
+// ForwardQueryHandler handles POST requests to forward a query embedding to a list of peers via TCP.
+func ForwardQueryHandler(w http.ResponseWriter, r *http.Request) {
+	// Decode the request body into the request struct
+	var req models.ForwardQueryRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
 
-type ClusterResponse struct {
-	Cluster struct {
-		Centroid  map[string]float64 `json:"centroid"`
-		Filenames []string           `json:"filenames"`
-		NFiles    int                `json:"nfiles"`
-		NMissing  int                `json:"nmissing"`
-	} `json:"cluster"`
-}
+	// Marshal the query into JSON format
+	data, err := json.Marshal(req.Query)
+	if err != nil {
+		http.Error(w, "Failed to marshal query: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-const QueryProtocol = "/filenest/query/1.0.0"
+	// Add newline as a delimiter (if the peer expects a delimiter)
+	data = append(data, '\n')
 
-func HandleQueryAPI(h host.Host, handler func(QueryRequest) (ClusterResponse, error)) {
-	h.SetStreamHandler(QueryProtocol, func(s network.Stream) {
-		defer s.Close()
-		var req QueryRequest
-		if err := json.NewDecoder(s).Decode(&req); err != nil {
-			return
-		}
-		resp, err := handler(req)
+	// Send the query to each peer individually via TCP
+	for _, peer := range req.Peers {
+		address := net.JoinHostPort(peer.IP, strconv.Itoa(peer.Port))
+
+		conn, err := net.Dial("tcp", address)
 		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to connect to peer %d (%s): %v", peer.ID, address, err), http.StatusInternalServerError)
 			return
 		}
-		json.NewEncoder(s).Encode(resp)
-	})
-}
 
-func SendQuery(ctx context.Context, h host.Host, peerID string, req QueryRequest) (ClusterResponse, error) {
-	var resp ClusterResponse
-	pid, err := peer.Decode(peerID)
-	if err != nil {
-		return resp, err
+		_, err = conn.Write(data)
+		conn.Close()
+
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to send to peer %d (%s): %v", peer.ID, address, err), http.StatusInternalServerError)
+			return
+		}
 	}
-	s, err := h.NewStream(ctx, pid, QueryProtocol)
-	if err != nil {
-		return resp, err
-	}
-	defer s.Close()
-	if err := json.NewEncoder(s).Encode(req); err != nil {
-		return resp, err
-	}
-	if err := json.NewDecoder(s).Decode(&resp); err != nil {
-		return resp, err
-	}
-	return resp, nil
+
+	// Return success if all forwards succeeded
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"status": "success",
+	})
 }
