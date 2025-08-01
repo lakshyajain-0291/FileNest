@@ -9,16 +9,13 @@ import (
 	"sort"
 	"sync"
 	"time"
-<<<<<<< HEAD
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
-=======
-	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	"github.com/libp2p/go-libp2p/core/host"
->>>>>>> c1ac24136fe57d94ff4a7fca16aa4e44cc99726d
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	"github.com/multiformats/go-multiaddr"
 )
 
@@ -392,62 +389,54 @@ func Ping(ctx context.Context, host host.Host, contact *Contact) (ping.Result, e
 
 // refreshBuckets refreshes stale buckets
 
-<<<<<<< HEAD
-		// Check if bucket needs refresh
-		if time.Since(bucket.lastRefresh) > RefreshInterval {
-
-			go rt.performBucketRefresh(i)
-			bucket.lastRefresh = time.Now()
-		}
-=======
 func (rt *RoutingTable) refreshBuckets(host host.Host) {
-    for i, bucket := range rt.buckets {
-        bucket.mutex.RLock()
-        timeSinceLast := time.Since(bucket.lastRefresh)
-        bucket.mutex.RUnlock()
->>>>>>> c1ac24136fe57d94ff4a7fca16aa4e44cc99726d
+	for i, bucket := range rt.buckets {
+		bucket.mutex.RLock()
+		timeSinceLast := time.Since(bucket.lastRefresh)
+		bucket.mutex.RUnlock()
 
-        if timeSinceLast > RefreshInterval {
-            go rt.performBucketRefresh(i)
-            bucket.mutex.Lock()
-            bucket.lastRefresh = time.Now()
-            bucket.mutex.Unlock()
-        }
+		if timeSinceLast > RefreshInterval {
+			go rt.performBucketRefresh(i)
+			bucket.mutex.Lock()
+			bucket.lastRefresh = time.Now()
+			bucket.mutex.Unlock()
+		}
 
-        // Ping peers concurrently and prune unresponsive ones
-        bucket.mutex.RLock()
-        contacts := make([]*Contact, len(bucket.contacts))
-        copy(contacts, bucket.contacts)
-        bucket.mutex.RUnlock()
+		// Ping peers concurrently and prune unresponsive ones
+		bucket.mutex.RLock()
+		contacts := make([]*Contact, len(bucket.contacts))
+		copy(contacts, bucket.contacts)
+		bucket.mutex.RUnlock()
 
-        var wg sync.WaitGroup
-        var mu sync.Mutex
-        var activeContacts []*Contact
+		var wg sync.WaitGroup
+		var mu sync.Mutex
+		var activeContacts []*Contact
 
-        ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-        defer cancel()
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
 
-        for _, contact := range contacts {
-            wg.Add(1)
-            go func(c *Contact) {
-                defer wg.Done()
-                result, err := Ping(ctx, host, c)
-                if err == nil && result.Error == nil {
-                    mu.Lock()
-                    activeContacts = append(activeContacts, c)
-                    mu.Unlock()
-                } else if rt.onPeerRemoved != nil {
-                    rt.onPeerRemoved(c)
-                }
-            }(contact)
-        }
-        wg.Wait()
+		for _, contact := range contacts {
+			wg.Add(1)
+			go func(c *Contact) {
+				defer wg.Done()
+				result, err := Ping(ctx, host, c)
+				if err == nil && result.Error == nil {
+					mu.Lock()
+					activeContacts = append(activeContacts, c)
+					mu.Unlock()
+				} else if rt.onPeerRemoved != nil {
+					rt.onPeerRemoved(c)
+				}
+			}(contact)
+		}
+		wg.Wait()
 
-        bucket.mutex.Lock()
-        bucket.contacts = activeContacts
-        bucket.mutex.Unlock()
-    }
+		bucket.mutex.Lock()
+		bucket.contacts = activeContacts
+		bucket.mutex.Unlock()
+	}
 }
+
 // performBucketRefresh performs a lookup to refresh a bucket
 func (rt *RoutingTable) performBucketRefresh(bucketIndex int) {
 	// This would typically generate a random target ID in the bucket's range
