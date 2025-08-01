@@ -99,7 +99,8 @@ func main() {
 	defer host.Close()
 
     localPeerID = generatePeerID("peerid_file", host.Addrs()[0].String())
-
+    rt := routing_table.NewRoutingTable(localPeerID, host)
+    
 	// Register a stream handler to intercept messages
 	host.SetStreamHandler("/jsonmessages/1.0.0", func(s network.Stream) {
 		findvalue.HandleJSONMessages(s, localPeerID, rt) // need to create a global routing table which is stored in memory

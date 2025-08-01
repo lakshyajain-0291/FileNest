@@ -11,7 +11,6 @@ import (
 	routing_table "dht/routing_table"
 
 	"github.com/libp2p/go-libp2p/core/network"
-	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 type FileInfo interface {
@@ -32,14 +31,14 @@ type EmbeddingSearchRequest struct {
 }
 
 type EmbeddingSearchResponse struct {
-	Type          string    `json:"type"`
-	QueryEmbed    []float64 `json:"query_embed"`
-	Depth         int       `json:"depth"`
-	CurrentPeerID int       `json:"current_peer_id"`
-	NextPeerID    int       `json:"next_peer_id"`
-	FileMetadata  store.Record  `json:"file_metadata"`
-	IsProcessed   bool      `json:"is_processed"` //this is to check if the query has the reached the D4 node or not
-	Found         bool      `json:"found"`        //this is to confirm if the target peer id for a peer at any depth has been found or not
+	Type          string       `json:"type"`
+	QueryEmbed    []float64    `json:"query_embed"`
+	Depth         int          `json:"depth"`
+	CurrentPeerID int          `json:"current_peer_id"`
+	NextPeerID    int          `json:"next_peer_id"`
+	FileMetadata  store.Record `json:"file_metadata"`
+	IsProcessed   bool         `json:"is_processed"` //this is to check if the query has the reached the D4 node or not
+	Found         bool         `json:"found"`        //this is to confirm if the target peer id for a peer at any depth has been found or not
 }
 
 type Metadata struct {
@@ -48,16 +47,15 @@ type Metadata struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-func intToPeerID(id int) peer.ID {
-	// Convert int to string, then to peer.ID
-	return peer.ID(strconv.Itoa(id))
-}
+// func intToPeerID(id int) peer.ID {
+// 	// Convert int to string, then to peer.ID
+// 	return peer.ID(strconv.Itoa(id))
+// }
 
 func FindValue(rt *routing_table.RoutingTable, targetPeerId int) (bool, []*routing_table.Contact) {
-	// TODO: Check the routing table for closest matches
-	targetPeerID := intToPeerID(targetPeerId)
+	// targetPeerID := intToPeerID(targetPeerId)
 	// use findClosestPeers to find the closest peers and add a check to ensure they are above the threshold. or check with abhinav if this is being done on the frontend
-	candidates := rt.FindClosestPeers(targetPeerID, routing_table.BucketSize)
+	candidates := rt.FindClosestPeers(targetPeerId, routing_table.BucketSize)
 	found := len(candidates) > 0
 
 	return found, candidates

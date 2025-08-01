@@ -2,11 +2,12 @@ package routing_table
 
 import (
 	"context"
-	"crypto/sha256"
 	"fmt"
 	"log"
-	"math/big"
+	"math/bits"
+	"math/rand"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -21,8 +22,8 @@ import (
 
 const (
 	// Kademlia constants
-	BucketSize      = 20 // K value
-	KeySize         = 256
+	BucketSize      = 20        // K value
+	KeySize         = 64        // Updated for 64-bit integers
 	AlphaValue      = 3         // Concurrency
 	RefreshInterval = time.Hour // How often to refresh buckets
 	PingTimeout     = 10 * time.Second
@@ -30,11 +31,11 @@ const (
 
 // Contact represents a peer in the network
 type Contact struct {
-	ID         peer.ID
+	ID         int // Changed from peer.ID to int
 	Address    multiaddr.Multiaddr
 	LastSeen   time.Time
 	IsAlive    bool
-	RTT        time.Duration //for caclulating latency in communication
+	RTT        time.Duration // for calculating latency in communication
 	Depth      int
 	TagVectors []TagVector // For FileNest tagging system
 }
@@ -59,7 +60,7 @@ type Bucket struct {
 
 // to implement the main routing
 type RoutingTable struct {
-	localID peer.ID   // Local peer
+	localID int       // Changed from peer.ID to int
 	buckets []*Bucket // Kademlia buckets
 	mutex   sync.RWMutex
 	ctx     context.Context
@@ -76,7 +77,7 @@ type RoutingTable struct {
 	onPeerRemoved func(contact *Contact)
 }
 
-func NewRoutingTable(localID peer.ID, host host.Host) *RoutingTable {
+func NewRoutingTable(localID int, host host.Host) *RoutingTable {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	rt := &RoutingTable{
@@ -92,7 +93,7 @@ func NewRoutingTable(localID peer.ID, host host.Host) *RoutingTable {
 	for i := 0; i < KeySize; i++ {
 		rt.buckets[i] = &Bucket{
 			contacts:     make([]*Contact, 0, BucketSize),
-			replacements: make([]*Contact, 0, BucketSize), //list of all the useless peers in the bucet
+			replacements: make([]*Contact, 0, BucketSize), // list of all the useless peers in the bucket
 		}
 	}
 
@@ -118,43 +119,25 @@ func NewRoutingTable(localID peer.ID, host host.Host) *RoutingTable {
 	return rt
 }
 
-// XOR distance between two peer IDs
-func calculateDistance(id1, id2 peer.ID) *big.Int {
-	hash1 := sha256.Sum256([]byte(id1)) //first hash the peer ids
-	hash2 := sha256.Sum256([]byte(id2))
-	// dist := subtle.XOR(bytes.NewSlice(hash1[:]), bytes.NewSlice(hash2[:])) XOR function not being recognised
-
-	dist := new(big.Int)
-	for i := 0; i < 32; i++ { //iterate over each of the 32 bytes of hash value
-		dist.SetBit(dist, i*8+7, uint(hash1[i]^hash2[i])&1)    //i*8+7 is the index of the bit in dist.&1: This is performing a bitwise AND operation between the result of the XOR operation and the value 1. This is essentially extracting the least significant bit (LSB) of the result.
-		dist.SetBit(dist, i*8+6, uint(hash1[i]^hash2[i])>>1&1) //The >>1 operation shifts the bits one position to the right, effectively dividing the result by 2.
-		dist.SetBit(dist, i*8+5, uint(hash1[i]^hash2[i])>>2&1)
-		dist.SetBit(dist, i*8+4, uint(hash1[i]^hash2[i])>>3&1)
-		dist.SetBit(dist, i*8+3, uint(hash1[i]^hash2[i])>>4&1)
-		dist.SetBit(dist, i*8+2, uint(hash1[i]^hash2[i])>>5&1)
-		dist.SetBit(dist, i*8+1, uint(hash1[i]^hash2[i])>>6&1)
-		dist.SetBit(dist, i*8+0, uint(hash1[i]^hash2[i])>>7&1)
-	}
-	return dist
+// XOR distance between two peer IDs (for 64-bit integers)
+func calculateDistance(id1, id2 int) int {
+	return id1 ^ id2
 }
 
-// getBucketIndex returns the bucket index for a given peer ID
-func (rt *RoutingTable) getBucketIndex(peerID peer.ID) int {
+// getBucketIndex returns the bucket index for a given peer ID (64-bit version)
+func (rt *RoutingTable) getBucketIndex(peerID int) int {
 	distance := calculateDistance(rt.localID, peerID)
-	if distance.Sign() == 0 {
+	if distance == 0 {
 		return 0 // Same as local ID
 	}
 
-	// Find the position of the most significant bit
-	bitLen := distance.BitLen()
-	if bitLen == 0 {
-		return 0
-	}
-	return KeySize - bitLen
+	// Use bits.LeadingZeros64 for efficient calculation
+	leadingZeros := bits.LeadingZeros64(uint64(distance))
+	return leadingZeros
 }
 
 // AddPeer adds or updates a peer in the routing table
-func (rt *RoutingTable) AddPeer(peerID peer.ID, addr multiaddr.Multiaddr) error {
+func (rt *RoutingTable) AddPeer(peerID int, addr multiaddr.Multiaddr) error {
 	if peerID == rt.localID {
 		return nil // Don't add ourselves
 	}
@@ -169,11 +152,11 @@ func (rt *RoutingTable) AddPeer(peerID peer.ID, addr multiaddr.Multiaddr) error 
 	if rt.db != nil {
 		entry := RoutingTableEntry{
 			BucketIndex: bucketIndex,
-			PeerID:      peerID.String(),
+			PeerID:      fmt.Sprintf("%d", peerID), // Convert int to string
 			Address:     addr.String(),
 			LastSeen:    time.Now(),
 		}
-		rt.db.Where("peer_id = ?", peerID.String()).
+		rt.db.Where("peer_id = ?", fmt.Sprintf("%d", peerID)).
 			Assign(entry).
 			FirstOrCreate(&entry)
 	}
@@ -231,7 +214,7 @@ func (rt *RoutingTable) AddPeer(peerID peer.ID, addr multiaddr.Multiaddr) error 
 	return nil
 }
 
-func (rt *RoutingTable) RemovePeer(peerID peer.ID) {
+func (rt *RoutingTable) RemovePeer(peerID int) {
 	bucketIndex := rt.getBucketIndex(peerID)
 	bucket := rt.buckets[bucketIndex]
 
@@ -240,7 +223,7 @@ func (rt *RoutingTable) RemovePeer(peerID peer.ID) {
 
 	// Remove from database
 	if rt.db != nil {
-		rt.db.Where("peer_id = ?", peerID.String()).Delete(&RoutingTableEntry{})
+		rt.db.Where("peer_id = ?", fmt.Sprintf("%d", peerID)).Delete(&RoutingTableEntry{})
 	}
 
 	for i, contact := range bucket.contacts {
@@ -266,7 +249,7 @@ func (rt *RoutingTable) RemovePeer(peerID peer.ID) {
 	}
 }
 
-func (rt *RoutingTable) FindClosestPeers(targetID peer.ID, k int) []*Contact { //k closest peers
+func (rt *RoutingTable) FindClosestPeers(targetID int, k int) []*Contact { // k closest peers
 	bucketIndex := rt.getBucketIndex(targetID)
 
 	var candidates []*Contact
@@ -307,7 +290,7 @@ func (rt *RoutingTable) FindClosestPeers(targetID peer.ID, k int) []*Contact { /
 	sort.Slice(candidates, func(i, j int) bool {
 		distI := calculateDistance(targetID, candidates[i].ID)
 		distJ := calculateDistance(targetID, candidates[j].ID)
-		return distI.Cmp(distJ) < 0
+		return distI < distJ // Simple comparison for int
 	})
 
 	// Return at most k contacts
@@ -318,7 +301,7 @@ func (rt *RoutingTable) FindClosestPeers(targetID peer.ID, k int) []*Contact { /
 	return candidates
 }
 
-func (rt *RoutingTable) GetPeer(peerID peer.ID) (*Contact, bool) {
+func (rt *RoutingTable) GetPeer(peerID int) (*Contact, bool) {
 	bucketIndex := rt.getBucketIndex(peerID)
 	bucket := rt.buckets[bucketIndex]
 
@@ -367,7 +350,12 @@ func (rt *RoutingTable) maintainBuckets(host host.Host) {
 
 // acts as the ping rpc
 func Ping(ctx context.Context, host host.Host, contact *Contact) (ping.Result, error) {
-	fullAddr := multiaddr.Join(contact.Address, multiaddr.StringCast("/p2p/"+contact.ID.String()))
+	// Convert int ID to string for multiaddr
+	peerIDStr := fmt.Sprintf("%d", contact.ID)
+	fullAddr := multiaddr.Join(contact.Address, multiaddr.StringCast("/p2p/"+peerIDStr))
+
+	// Note: This may need adjustment depending on how you handle peer discovery
+	// with integer IDs in your libp2p setup
 	addrInfo, err := peer.AddrInfoFromP2pAddr(fullAddr)
 	if err != nil {
 		return ping.Result{}, fmt.Errorf("invalid addrinfo: %w", err)
@@ -388,7 +376,6 @@ func Ping(ctx context.Context, host host.Host, contact *Contact) (ping.Result, e
 }
 
 // refreshBuckets refreshes stale buckets
-
 func (rt *RoutingTable) refreshBuckets(host host.Host) {
 	for i, bucket := range rt.buckets {
 		bucket.mutex.RLock()
@@ -439,17 +426,39 @@ func (rt *RoutingTable) refreshBuckets(host host.Host) {
 
 // performBucketRefresh performs a lookup to refresh a bucket
 func (rt *RoutingTable) performBucketRefresh(bucketIndex int) {
-	// This would typically generate a random target ID in the bucket's range
-	// and perform a FIND_NODE lookup to discover new peers
+	// Generate a random target ID in the bucket's range for 64-bit
+	var targetID int
 
-	log.Printf("Refreshing bucket %d", bucketIndex)
+	if bucketIndex == 0 {
+		// For bucket 0, generate any random ID
+		targetID = GenerateRandomID()
+	} else {
+		// Generate an ID that would fall into this specific bucket
+		// by setting appropriate bit patterns
+		distance := 1 << (63 - bucketIndex) // Create distance with MSB at correct position
+		targetID = rt.localID ^ distance
+
+		// Add some randomness to lower bits
+		randomLower := rand.Intn(1 << (63 - bucketIndex))
+		targetID ^= randomLower
+	}
+
+	log.Printf("Refreshing bucket %d with target ID %d", bucketIndex, targetID)
+
+	// This would typically perform a FIND_NODE lookup to discover new peers
+	// Implementation would go here
 }
 
-// RoutingTableEntry our databse model
+// GenerateRandomID generates a random 64-bit integer ID
+func GenerateRandomID() int {
+	return rand.Int() // This gives you a positive int in the full range
+}
+
+// RoutingTableEntry our database model
 type RoutingTableEntry struct {
 	gorm.Model
 	BucketIndex int    `gorm:"index"`
-	PeerID      string `gorm:"uniqueIndex"`
+	PeerID      string `gorm:"uniqueIndex"` // Keep as string for database
 	Address     string
 	LastSeen    time.Time
 }
@@ -528,7 +537,7 @@ func (rt *RoutingTable) GetEmbedding(fileHash string) ([]float64, bool) {
 }
 
 func (rt *RoutingTable) SetCallbacks(onAdded, onRemoved func(*Contact)) {
-	rt.onPeerAdded = onAdded //callback functions for peer events
+	rt.onPeerAdded = onAdded // callback functions for peer events
 	rt.onPeerRemoved = onRemoved
 }
 
@@ -556,7 +565,7 @@ func (rt *RoutingTable) LoadFromDatabase() error {
 	}
 
 	for _, entry := range entries {
-		peerID, err := peer.Decode(entry.PeerID)
+		peerID, err := strconv.Atoi(entry.PeerID) // Convert string to int
 		if err != nil {
 			continue
 		}
@@ -590,7 +599,7 @@ func (rt *RoutingTable) GetBucketInfo(index int) (int, int, time.Time) {
 
 // prints the current state of the routing table
 func (rt *RoutingTable) PrintRoutingTable() {
-	fmt.Printf("routing Table for peer %s:\n", rt.localID[:8])
+	fmt.Printf("Routing Table for peer %d:\n", rt.localID)
 
 	totalPeers := 0
 	for i, bucket := range rt.buckets {
@@ -599,8 +608,8 @@ func (rt *RoutingTable) PrintRoutingTable() {
 			fmt.Printf("Bucket %d: %d contacts, %d replacements\n",
 				i, len(bucket.contacts), len(bucket.replacements))
 			for j, contact := range bucket.contacts {
-				fmt.Printf("  [%d] %s (last seen: %s, alive: %t)\n",
-					j, contact.ID[:8],
+				fmt.Printf("  [%d] %d (last seen: %s, alive: %t)\n",
+					j, contact.ID,
 					contact.LastSeen.Format("15:04:05"), contact.IsAlive)
 			}
 			totalPeers += len(bucket.contacts)
@@ -610,6 +619,5 @@ func (rt *RoutingTable) PrintRoutingTable() {
 
 	fmt.Printf("Total peers: %d\n", totalPeers)
 	fmt.Printf("Tag vectors: %d depths\n", len(rt.tagVectors))
-	fmt.Printf("stord embeddings: %d\n", len(rt.embeddings))
-
+	fmt.Printf("Stored embeddings: %d\n", len(rt.embeddings))
 }
