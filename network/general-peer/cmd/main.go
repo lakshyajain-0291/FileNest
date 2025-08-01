@@ -1,11 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"general-peer/pkg/helpers"
 	"general-peer/pkg/models"
 	"general-peer/pkg/testing"
 	"log"
 	"time"
+
+	"github.com/libp2p/go-libp2p/core/network"
 )
 
 func main() {
@@ -27,47 +30,50 @@ func main() {
 		},
 	}
 
-	// // Start TCP listener for incoming messages
-	// listener := helpers.InitTCPListener("127.0.0.1:8080")
 	msgChan := make(chan models.Message)
-	// go helpers.ListenForMessage(listener, msgChan)
 
 	// Create WebRTC host
-	webRTCHost, err := helpers.CreateWebRTCHost(12345)
+	senderHost, err := helpers.CreateWebRTCHost(12345)
 	if err != nil {
 		log.Fatalf("Failed to create WebRTC host: %v", err)
 	}
-	defer webRTCHost.Close()
-	log.Printf("WebRTC Host ID: %s", webRTCHost.ID())
-	// log.Printf("WebRTC Addresses: %v", webRTCHost.Addrs())
+	defer senderHost.Close()
+	log.Printf("WebRTC Host ID: %s", senderHost.ID())
 
-	webRTCHost2, err := helpers.CreateWebRTCHost(12346)
+	recieverHost, err := helpers.CreateWebRTCHost(12346)
 	if err != nil {
 		log.Fatalf("Failed to create WebRTC host: %v", err)
 	}
-	defer webRTCHost2.Close()
-	log.Printf("WebRTC Host ID: %s", webRTCHost2.ID())
-	// log.Printf("WebRTC Addresses: %v", webRTCHost2.Addrs())
+	defer recieverHost.Close()
+	log.Printf("WebRTC Host ID: %s", recieverHost.ID())
 
-	// Set stream handler for WebRTC
+	recieverHost.SetStreamHandler("/general-peer/query", func(s network.Stream) {
+    var msg models.Message
+    if err := json.NewDecoder(s).Decode(&msg); err != nil {
+        log.Printf("WebRTC decode error (host): %v", err)
+        s.Reset()
+        return
+    }
+    s.Close()
+    msgChan <- msg
+})
 
-	// webRTCHost2.SetStreamHandler("/general-peer/query", func(s network.Stream) {
-	// 	var msg models.Message
-	// 	if err := json.NewDecoder(s).Decode(&msg); err != nil {
-	// 		log.Printf("WebRTC decode error (host): %v", err)
-	// 		s.Reset()
-	// 		return
-	// 	}
-	// 	s.Close()
-	// 	msgChan <- msg
-	// 	log.Printf("Received WebRTC message (host): %+v", msg)
-	// })
+recieverHost.SetStreamHandler("/general-peer/peer", func(s network.Stream) {
+	var msg models.Message
+	if err := json.NewDecoder(s).Decode(&msg); err != nil {
+		log.Printf("WebRTC decode error (host): %v", err)
+		s.Reset()
+		return
+	}
+	s.Close()
+	msgChan <- msg
+})
 
 	time.Sleep(time.Second)
 	// Send Peer message over WebRTC (to ourselves)
 	log.Println("Sending Peer message via WebRTC...")
-	selfAddr := helpers.GetHostAddress(webRTCHost2)
-	err = helpers.SendWebRTCMessage(webRTCHost, selfAddr, peerMsg, msgChan, "general-peer/peer")
+	recieverAddr := helpers.GetHostAddress(recieverHost)
+	err = helpers.SendWebRTCMessage(senderHost, recieverAddr, peerMsg, "/general-peer/peer")
 	if err != nil {
 		log.Printf("Error sending WebRTC message: %v", err)
 	}
@@ -75,7 +81,7 @@ func main() {
 	time.Sleep(time.Second)
 
 	log.Println("Sending Query message via WebRTC...")
-	err = helpers.SendWebRTCMessage(webRTCHost, selfAddr, queryMsg, msgChan, "general-peer/query")
+	err = helpers.SendWebRTCMessage(senderHost, recieverAddr, queryMsg, "/general-peer/query")
 	if err != nil {
 		log.Printf("Error sending WebRTC message: %v", err)
 	}

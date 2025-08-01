@@ -1,116 +1,82 @@
 package helpers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"general-peer/pkg/consts"
 	"general-peer/pkg/models"
 	"log"
-	"net"
+	"time"
+
+	"github.com/libp2p/go-libp2p"
+	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/protocol"
+	webrtc "github.com/libp2p/go-libp2p/p2p/transport/webrtc"
+	ma "github.com/multiformats/go-multiaddr"
 )
 
-func InitTCPListener(address string) net.Listener {
-	listener, err := net.Listen("tcp", address)
-	if err != nil {
-		log.Fatalf("Failed to start TCP listener: %v", err)
-	}
-	log.Printf("Listening on TCP %s", address)
-	return listener
+func CreateWebRTCHost(port int) (host.Host, error) {
+    priv, _, err := crypto.GenerateKeyPair(crypto.Ed25519, 0)
+    if err != nil {
+        return nil, err
+    }
+
+    // Use webrtc-direct instead of webrtc
+    addr, err := ma.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/udp/%d/webrtc-direct", port))
+    if err != nil {
+        return nil, err
+    }
+
+    // Pass the constructor, not the instance!
+    return libp2p.New(
+        libp2p.Identity(priv),
+        libp2p.ListenAddrs(addr),
+        libp2p.Transport(webrtc.New),
+    )
 }
 
-func ListenForMessage(listener net.Listener, msgChan chan models.Message) {
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			log.Printf("Failed to accept connection: %v", err)
-			continue
-		}
-		go handleConnection(conn, msgChan)
-	}
+func Decoder(s network.Stream, msgChan chan models.Message){
+    var msg models.Message
+    if err := json.NewDecoder(s).Decode(&msg); err != nil {
+        log.Printf("WebRTC decode error (host): %v", err)
+        s.Reset()
+        return
+    }
+    s.Close()
+    msgChan <- msg
 }
 
-func handleConnection(conn net.Conn, msgChan chan models.Message) {
-	defer conn.Close()
+func GetHostAddress(h host.Host) ma.Multiaddr {
+    addrs := h.Addrs()
+    if len(addrs) == 0 {
+        return nil
+    }
 
-	buf := make([]byte, consts.MAX_MSG_SIZE)
-	n, err := conn.Read(buf)
-	if err != nil {
-		log.Printf("Read error: %v", err)
-		return
-	}
-
-	var msg models.Message
-	err = json.Unmarshal(buf[:n], &msg)
-	if err != nil {
-		log.Printf("Unmarshal error: %v", err)
-		return
-	}
-
-	switch msg.Type {
-	case "query":
-		if len(msg.QueryEmbed) != consts.EMBED_DIM {
-			log.Println("Invalid query vector size")
-			return
-		}
-	case "peer":
-		if msg.CurrentPeerID <= 0 {
-			log.Println("Invalid peer ID")
-			return
-		}
-		if msg.FileMetadata.Name == "" && msg.Depth == 4 {
-			log.Println("Missing file name at depth 4")
-			return
-		}
-	}
-
-	msgChan <- msg
+    return addrs[0].Encapsulate(ma.StringCast("/p2p/" + h.ID().String()))
 }
 
-func SendTCPMessage(peerAddr string, msg models.Message) error {
-	conn, err := net.Dial("tcp", peerAddr)
-	if err != nil {
-		return fmt.Errorf("dial error: %v", err)
-	}
-	defer conn.Close()
+func SendWebRTCMessage(h host.Host, target ma.Multiaddr, msg models.Message, endpoint protocol.ID) error {
+    peerInfo, err := peer.AddrInfoFromP2pAddr(target)
+    if err != nil {
+        return err
+    }
 
-	msgBytes, err := json.Marshal(msg)
-	if err != nil {
-		return fmt.Errorf("marshal error: %v", err)
-	}
 
-	_, err = conn.Write(msgBytes)
-	if err != nil {
-		return fmt.Errorf("write error: %v", err)
-	}
-	log.Printf("Sent %d bytes to %s", len(msgBytes), peerAddr)
-	return nil
-}
+    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+    defer cancel()
 
-func ForwardQueryTCP(peerId int, queryEmbed []float64, peerAddr string) error {
-	if len(queryEmbed) != consts.EMBED_DIM {
-		return fmt.Errorf("embedding dimension mismatch: expected %v", consts.EMBED_DIM)
-	}
+    if err := h.Connect(ctx, *peerInfo); err != nil {
+        return err
+    }
 
-	msg := models.MessageToPeer{
-		QueryEmbed: queryEmbed,
-		SourcePeerID:     peerId,
-	}
+    s, err := h.NewStream(ctx, peerInfo.ID, endpoint)
+    if err != nil {
+        return err
+    }
+    defer s.Close()
 
-	msgBytes, err := json.Marshal(msg)
-	if err != nil {
-		return fmt.Errorf("marshal error: %v", err)
-	}
-
-	conn, err := net.Dial("tcp", peerAddr)
-	if err != nil {
-		return fmt.Errorf("dial error: %v", err)
-	}
-	defer conn.Close()
-
-	n, err := conn.Write(msgBytes)
-	if err != nil {
-		return fmt.Errorf("write error: %v", err)
-	}
-	log.Printf("Forwarded %d bytes to %s (peerId %d)", n, peerAddr, peerId)
-	return nil
+    return json.NewEncoder(s).Encode(msg)
 }
