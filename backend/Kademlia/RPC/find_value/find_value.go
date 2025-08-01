@@ -37,7 +37,7 @@ type EmbeddingSearchResponse struct {
 	Depth         int       `json:"depth"`
 	CurrentPeerID int       `json:"current_peer_id"`
 	NextPeerID    int       `json:"next_peer_id"`
-	FileMetadata  store.Record  `json:"file_metadata"`
+	FileMetadata  store.Record  `json:"file_metadata"` // using the record struct instead of metadata as it provides all the required info
 	IsProcessed   bool      `json:"is_processed"` //this is to check if the query has the reached the D4 node or not
 	Found         bool      `json:"found"`        //this is to confirm if the target peer id for a peer at any depth has been found or not
 }
@@ -62,7 +62,6 @@ func FindValue(rt *routing_table.RoutingTable, targetPeerId int) (bool, []*routi
 
 	return found, candidates
 }
-
 func HandleJSONMessages(s network.Stream, current_peer_id int, rt *routing_table.RoutingTable) {
 	defer s.Close()
 
