@@ -115,23 +115,6 @@ func NewRoutingTable(localID int, host host.Host) *RoutingTable {
 	// Start maintenance routines
 	go rt.maintainBuckets(host)
 
-	// Start database sync routine
-	go func() {
-		ticker := time.NewTicker(5 * time.Minute) // Sync every 5 minutes
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-rt.ctx.Done():
-				return
-			case <-ticker.C:
-				if err := rt.UpdateFromDatabase(); err != nil {
-					log.Printf("Failed to update routing table from database: %v", err)
-				}
-			}
-		}
-	}()
-
 	return rt
 }
 
