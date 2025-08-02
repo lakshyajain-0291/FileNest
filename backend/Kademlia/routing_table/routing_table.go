@@ -26,6 +26,7 @@ const (
 	AlphaValue      = 3         // Concurrency
 	RefreshInterval = time.Hour // How often to refresh buckets
 	PingTimeout     = 10 * time.Second
+	uploadInterval  = 24 * time.Hour // how often to upload records to the database
 )
 
 // Contact represents a peer in the network
@@ -76,6 +77,88 @@ type RoutingTable struct {
 	onPeerRemoved func(contact *Contact)
 }
 
+type CentralDB struct {
+	gorm.Model
+	peerID       int    `gorm:"primarykey"`
+	multiaddress string `gorm:"not null"`
+}
+
+// a func for every peer to upload their peerid and multiaddr to the db
+// this func will be called periodically as a goroutine inside the create routing table function
+func (rt *RoutingTable) uploadtoCentralDB(db_name string, peerid int, host host.Host) {
+
+	go func() {
+        ticker := time.NewTicker(uploadInterval)
+        defer ticker.Stop()
+        
+        db, err := gorm.Open(sqlite.Open(db_name), &gorm.Config{})
+        if err != nil {
+            log.Printf("Failed to connect to database: %v", err)
+            return
+        }
+        
+        for {
+            select {
+            case <-ticker.C:
+                // Get CURRENT IP each time - not a parameter
+                currentAddrs := host.Addrs()
+                if len(currentAddrs) > 0 {
+                    currentIP := currentAddrs[0].String()
+					metadata := CentralDB{peerID: peerid, multiaddress: currentIP}
+					results := db.Save(&metadata)
+
+					if results.Error != nil{
+						fmt.Printf("Could not upload the data to the central database: %v", results.Error)
+					}else{
+						fmt.Printf("Uploaded the data successfully")
+					}
+				
+                }
+                
+            case <-rt.ctx.Done():
+                return
+            }
+        }
+    }()
+}
+
+// a func to fetch the routing table records and for a new peer
+// this func will fetch the routing table only once when the peer is created initially.
+// to ensure that you are not fetching from the central db once you have joined the network,
+// just check if routing_table.db is empty or not.
+
+func (rt *RoutingTable) fetchfromCentralDB(central_db_name string, local_db_name string) {
+	// first read all the records
+	central_db, err := gorm.Open(sqlite.Open(central_db_name), &gorm.Config{})
+	if err != nil {
+		log.Printf("Failed to connect to database: %v", err)
+		return
+	}
+
+	routing_table_peers := rt.GetAllPeers()
+	var peers []CentralDB
+	result := central_db.Find(&peers)
+
+	if result.Error != nil {
+		log.Printf("Error reading records: %v", result.Error)
+	} else {
+		fmt.Printf("Found %d records\n", result.RowsAffected)
+	}
+
+	// then add these records to the routing table using add_peer
+	if len(routing_table_peers) == 0{
+		for _, peer := range peers{
+		addr, err := multiaddr.NewMultiaddr(peer.multiaddress)
+		if err != nil{
+			fmt.Printf("Could not convert the string to multiaddr.Multiaddr: %v", err)
+		}
+		rt.AddPeer(peer.peerID, addr)
+		}
+	}else{
+		rt.LoadFromDatabase()
+	}
+}
+
 func NewRoutingTable(localID int, host host.Host) *RoutingTable {
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -96,6 +179,9 @@ func NewRoutingTable(localID int, host host.Host) *RoutingTable {
 		}
 	}
 
+	// goroutine for updating the centralDB regularly
+	go rt.uploadtoCentralDB("CentralDB.db", localID, host)
+
 	// Initialize database connection
 	db, err := gorm.Open(sqlite.Open("routing_table.db"), &gorm.Config{})
 	if err != nil {
@@ -108,9 +194,7 @@ func NewRoutingTable(localID int, host host.Host) *RoutingTable {
 			log.Printf("Failed to migrate database: %v", err)
 		}
 	}
-
-	// Load existing entries from database
-	//rt.LoadFromDatabase()
+	rt.fetchfromCentralDB("CentralDB.db", "routing_table.db")
 
 	// Start maintenance routines
 	go rt.maintainBuckets(host)
