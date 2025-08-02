@@ -6,6 +6,7 @@ import (
 	"log"
 	"math/bits"
 	"math/rand"
+	"net"
 	"sort"
 	"strconv"
 	"sync"
@@ -15,8 +16,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/libp2p/go-libp2p/core/host"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	"github.com/multiformats/go-multiaddr"
 )
 
@@ -349,30 +348,38 @@ func (rt *RoutingTable) maintainBuckets(host host.Host) {
 }
 
 // acts as the ping rpc
-func Ping(ctx context.Context, host host.Host, contact *Contact) (ping.Result, error) {
-	// Convert int ID to string for multiaddr
-	peerIDStr := fmt.Sprintf("%d", contact.ID)
-	fullAddr := multiaddr.Join(contact.Address, multiaddr.StringCast("/p2p/"+peerIDStr))
-
-	// Note: This may need adjustment depending on how you handle peer discovery
-	// with integer IDs in your libp2p setup
-	addrInfo, err := peer.AddrInfoFromP2pAddr(fullAddr)
+func PingPeer(ctx context.Context, contact *Contact, timeout time.Duration) error {
+	// Extract host and port from multiaddr
+	host, port, err := extractHostPort(contact.Address)
 	if err != nil {
-		return ping.Result{}, fmt.Errorf("invalid addrinfo: %w", err)
+		return err
 	}
 
-	if err := host.Connect(ctx, *addrInfo); err != nil {
-		return ping.Result{}, fmt.Errorf("connect failed: %w", err)
+	// Create connection with timeout
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%s", host, port), timeout)
+	if err != nil {
+		return fmt.Errorf("failed to connect to peer %d: %v", contact.ID, err)
 	}
+	defer conn.Close()
 
-	pingService := ping.NewPingService(host)
-	result := <-pingService.Ping(ctx, addrInfo.ID)
+	// Update contact info on successful connection
+	contact.IsAlive = true
+	contact.LastSeen = time.Now()
+	contact.RTT = time.Since(time.Now()) // You can measure actual RTT
 
-	if result.Error != nil {
-		return result, result.Error
+	return nil
+}
+
+func extractHostPort(addr multiaddr.Multiaddr) (string, string, error) {
+	host, err := addr.ValueForProtocol(multiaddr.P_IP4)
+	if err != nil {
+		return "", "", err
 	}
-
-	return result, nil
+	port, err := addr.ValueForProtocol(multiaddr.P_TCP)
+	if err != nil {
+		return "", "", err
+	}
+	return host, port, nil
 }
 
 // refreshBuckets refreshes stale buckets
@@ -406,13 +413,25 @@ func (rt *RoutingTable) refreshBuckets(host host.Host) {
 			wg.Add(1)
 			go func(c *Contact) {
 				defer wg.Done()
-				result, err := Ping(ctx, host, c)
-				if err == nil && result.Error == nil {
+
+				// Use custom TCP ping instead of libp2p ping
+				start := time.Now()
+				err := PingPeer(ctx, c, 3*time.Second)
+				if err == nil {
+					// Measure RTT
+					c.RTT = time.Since(start)
+					c.IsAlive = true
+					c.LastSeen = time.Now()
+
 					mu.Lock()
 					activeContacts = append(activeContacts, c)
 					mu.Unlock()
-				} else if rt.onPeerRemoved != nil {
-					rt.onPeerRemoved(c)
+				} else {
+					log.Printf("Peer %d unreachable: %v", c.ID, err)
+					c.IsAlive = false
+					if rt.onPeerRemoved != nil {
+						rt.onPeerRemoved(c)
+					}
 				}
 			}(contact)
 		}

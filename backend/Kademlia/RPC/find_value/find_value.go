@@ -3,12 +3,10 @@ package findvalue
 import (
 	"encoding/json"
 	"fmt"
-	"log"
-	"strconv"
 	"time"
 
-	store "dht/RPC/store"
-	routing_table "dht/routing_table"
+	"dht/RPC/store"
+	"dht/routing_table"
 
 	"github.com/libp2p/go-libp2p/core/network"
 )
@@ -83,11 +81,8 @@ func HandleJSONMessages(s network.Stream, current_peer_id int, rt *routing_table
 			status, fileinfo := FindValue(rt, msg.TargetPeerID)
 
 			for _, file := range fileinfo {
-				nextpeerid, err := strconv.Atoi(string((file.ID)))
-				if err != nil {
-					log.Printf("Error converting peer ID to int: %v", err)
-					continue
-				}
+				nextpeerid := file.ID
+
 				if current_depth != 4 {
 					ack := EmbeddingSearchResponse{Type: msg.QueryType, QueryEmbed: msg.Embed, Depth: current_depth,
 						CurrentPeerID: current_peer_id, NextPeerID: nextpeerid, IsProcessed: false, Found: status}
@@ -112,11 +107,8 @@ func HandleJSONMessages(s network.Stream, current_peer_id int, rt *routing_table
 			status, fileinfo := FindValue(rt, msg.TargetPeerID)
 
 			for _, file := range fileinfo {
-				nextpeerid, err := strconv.Atoi(string((file.ID)))
-				if err != nil {
-					log.Printf("Error converting peer ID to int: %v", err)
-					continue
-				}
+				nextpeerid := file.ID
+
 				if current_depth != 4 {
 					ack := EmbeddingSearchResponse{Type: msg.QueryType, QueryEmbed: msg.Embed, Depth: current_depth,
 						CurrentPeerID: current_peer_id, NextPeerID: nextpeerid, IsProcessed: false, Found: status}

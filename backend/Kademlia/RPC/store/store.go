@@ -21,7 +21,7 @@ type Record struct {
 func Store(db_name string, peerID int, embedding []float64, multiaddr string) {
 	// Connect to the SQLite database
 	db_name = fmt.Sprintf("./%s", db_name)
-	db, err := sql.Open("sqlite", db_name)
+	db, err := sql.Open("sqlite3", db_name)
 	if err != nil {
 		fmt.Println(err)
 		log.Fatal(err)
