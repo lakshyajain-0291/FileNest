@@ -384,21 +384,21 @@ func (rt *RoutingTable) FindClosestPeers(targetID int, k int) []*Contact { // k 
 	return candidates
 }
 
-func (rt *RoutingTable) GetPeer(peerID int) (*Contact, bool) {
-	bucketIndex := rt.getBucketIndex(peerID)
-	bucket := rt.buckets[bucketIndex]
+// func (rt *RoutingTable) GetPeer(peerID int) (*Contact, bool) {
+// 	bucketIndex := rt.getBucketIndex(peerID)
+// 	bucket := rt.buckets[bucketIndex]
 
-	bucket.mutex.RLock()
-	defer bucket.mutex.RUnlock()
+// 	bucket.mutex.RLock()
+// 	defer bucket.mutex.RUnlock()
 
-	for _, contact := range bucket.contacts {
-		if contact.ID == peerID {
-			return contact, true
-		}
-	}
+// 	for _, contact := range bucket.contacts {
+// 		if contact.ID == peerID {
+// 			return contact, true
+// 		}
+// 	}
 
-	return nil, false
-}
+// 	return nil, false
+// }
 
 func (rt *RoutingTable) GetAllPeers() []*Contact {
 	var allPeers []*Contact
@@ -656,28 +656,56 @@ func (rt *RoutingTable) Size() int {
 
 // LoadFromDatabase loads the routing table entries from SQLite database
 func (rt *RoutingTable) LoadFromDatabase() error {
+	// Open the existing database file directly
 	db, err := gorm.Open(sqlite.Open("routing_table.db"), &gorm.Config{})
 	if err != nil {
 		return fmt.Errorf("failed to open database: %v", err)
 	}
+	rt.db = db // Update the routing table's db connection
 
+	// Ensure the schema is up to date
+	if err := db.AutoMigrate(&RoutingTableEntry{}); err != nil {
+		return fmt.Errorf("failed to migrate schema: %v", err)
+	}
+
+	// Load all non-deleted entries
 	var entries []RoutingTableEntry
-	result := db.Find(&entries)
+	result := db.Where("deleted_at IS NULL").Find(&entries)
 	if result.Error != nil {
 		return fmt.Errorf("failed to load entries: %v", result.Error)
 	}
 
+	log.Printf("Loading %d entries from database", len(entries))
+
+	// Clear existing routing table
+	rt.mutex.Lock()
+	for i := range rt.buckets {
+		rt.buckets[i].mutex.Lock()
+		rt.buckets[i].contacts = make([]*Contact, 0, BucketSize)
+		rt.buckets[i].replacements = make([]*Contact, 0, BucketSize)
+		rt.buckets[i].mutex.Unlock()
+	}
+	rt.mutex.Unlock()
+
+	// Load entries from database
 	for _, entry := range entries {
-		peerID, err := strconv.Atoi(entry.PeerID) // Convert string to int
+		peerID, err := strconv.Atoi(entry.PeerID)
 		if err != nil {
-			continue
-		}
-		addr, err := multiaddr.NewMultiaddr(entry.Address)
-		if err != nil {
+			log.Printf("Invalid peer ID in database: %s", entry.PeerID)
 			continue
 		}
 
-		rt.AddPeer(peerID, addr)
+		addr, err := multiaddr.NewMultiaddr(entry.Address)
+		if err != nil {
+			log.Printf("Invalid address in database: %s", entry.Address)
+			continue
+		}
+
+		if err := rt.AddPeer(peerID, addr); err != nil {
+			log.Printf("Failed to add peer %d: %v", peerID, err)
+		} else {
+			log.Printf("Loaded peer %d from database", peerID)
+		}
 	}
 
 	return nil
@@ -698,6 +726,64 @@ func (rt *RoutingTable) GetBucketInfo(index int) (int, int, time.Time) {
 	defer bucket.mutex.RUnlock()
 
 	return len(bucket.contacts), len(bucket.replacements), bucket.lastRefresh
+}
+
+// UpdateFromDatabase synchronizes the routing table with the latest database entries
+func (rt *RoutingTable) UpdateFromDatabase() error {
+	// Ensure we're connected to the database
+	if rt.db == nil {
+		// Try to connect to the existing database
+		db, err := gorm.Open(sqlite.Open("routing_table.db"), &gorm.Config{})
+		if err != nil {
+			return fmt.Errorf("failed to open database: %v", err)
+		}
+		rt.db = db
+	}
+
+	// Load all non-deleted entries from database
+	var entries []RoutingTableEntry
+	result := rt.db.Where("deleted_at IS NULL").Find(&entries)
+	if result.Error != nil {
+		return fmt.Errorf("failed to load entries: %v", result.Error)
+	}
+
+	log.Printf("Found %d entries in database", len(entries))
+
+	// Create a map of existing peers for efficient lookup
+	existingPeers := make(map[int]bool)
+	rt.mutex.RLock()
+	for _, bucket := range rt.buckets {
+		bucket.mutex.RLock()
+		for _, contact := range bucket.contacts {
+			existingPeers[contact.ID] = true
+		}
+		bucket.mutex.RUnlock()
+	}
+	rt.mutex.RUnlock()
+
+	// Process database entries
+	for _, entry := range entries {
+		peerID, err := strconv.Atoi(entry.PeerID)
+		if err != nil {
+			log.Printf("Failed to convert peer ID %s: %v", entry.PeerID, err)
+			continue
+		}
+
+		addr, err := multiaddr.NewMultiaddr(entry.Address)
+		if err != nil {
+			log.Printf("Failed to parse multiaddr %s: %v", entry.Address, err)
+			continue
+		}
+
+		// If peer doesn't exist in routing table, add it
+		if !existingPeers[peerID] {
+			if err := rt.AddPeer(peerID, addr); err != nil {
+				log.Printf("Failed to add peer %d: %v", peerID, err)
+			}
+		}
+	}
+
+	return nil
 }
 
 // prints the current state of the routing table
