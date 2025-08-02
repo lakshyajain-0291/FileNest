@@ -2,7 +2,7 @@ package main
 
 import (
 	"crypto/sha1"
-	"dht/RPC/find_value"
+	findvalue "dht/RPC/find_value"
 	"dht/routing_table"
 	"encoding/binary"
 	"fmt"
@@ -60,43 +60,43 @@ func bigIntToBinaryInt(bigNum *big.Int) int {
 	return int(int64(binary.BigEndian.Uint64(last8Bytes)))
 }
 
-
 func generatePeerID(name string, ipaddr string) int {
-    filename := fmt.Sprintf("%s.txt", name)
-    
-    // Check if file exists and has content
-    if info, err := os.Stat(filename); err == nil && info.Size() > 0 {
-        // File exists and has content, read existing peer ID
-        fmt.Printf("Reading existing peer ID from %s\n", filename)
-        ipHash, err := readBigIntBinaryFromFile(filename)
-        if err != nil {
-            log.Printf("Error reading existing peer ID: %v", err)
-            // Fall through to create new one
-        } else {
-            peerID := bigIntToBinaryInt(ipHash)
-            fmt.Printf("Loaded existing peer ID: %d\n", peerID)
-            return peerID
-        }
-    }
-    
-    // File doesn't exist or is empty, create new peer ID
-    fmt.Printf("Creating new peer ID for %s\n", ipaddr)
-    ipHash := hashStringTo160Bits(ipaddr)
-    
-    if err := writeBigIntBinarytoFile(ipHash, filename); err != nil {
-        log.Fatalf("Failed to write peer ID to %s: %v", filename, err)
-    }
-    
-    peerID := bigIntToBinaryInt(ipHash)
-    fmt.Printf("Generated and saved new peer ID: %d to %s\n", peerID, filename)
-    return peerID
+	filename := fmt.Sprintf("%s.txt", name)
+
+	// Check if file exists and has content
+	if info, err := os.Stat(filename); err == nil && info.Size() > 0 {
+		// File exists and has content, read existing peer ID
+		fmt.Printf("Reading existing peer ID from %s\n", filename)
+		ipHash, err := readBigIntBinaryFromFile(filename)
+		if err != nil {
+			log.Printf("Error reading existing peer ID: %v", err)
+			// Fall through to create new one
+		} else {
+			peerID := bigIntToBinaryInt(ipHash)
+			fmt.Printf("Loaded existing peer ID: %d\n", peerID)
+			return peerID
+		}
+	}
+
+	// File doesn't exist or is empty, create new peer ID
+	fmt.Printf("Creating new peer ID for %s\n", ipaddr)
+	ipHash := hashStringTo160Bits(ipaddr)
+
+	if err := writeBigIntBinarytoFile(ipHash, filename); err != nil {
+		log.Fatalf("Failed to write peer ID to %s: %v", filename, err)
+	}
+
+	peerID := bigIntToBinaryInt(ipHash)
+	fmt.Printf("Generated and saved new peer ID: %d to %s\n", peerID, filename)
+	return peerID
 }
+
 // create a global routing table variable which stores and retrives the records in local memory.
 var rt *routing_table.RoutingTable
 
 func main() {
 	host, err := libp2p.New(libp2p.Transport(tcp.NewTCPTransport),
-                            libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
+		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
 
 	if err != nil {
 		log.Fatal(err)
@@ -104,7 +104,7 @@ func main() {
 	}
 	defer host.Close()
 
-	localPeerID = generatePeerID("peerid_file", host.Addrs()[0].String())
+	localPeerID = generatePeerID("peerid_file", host.Addrs()[0].String()) //to keep the peer id consistent acoss restart
 	rt = routing_table.NewRoutingTable(localPeerID, host)
 
 	// Register a stream handler to intercept messages
