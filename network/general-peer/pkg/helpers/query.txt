@@ -1,0 +1,68 @@
+package helpers
+
+import (
+	"encoding/json"
+	"fmt"
+	"general-peer/pkg/consts"
+	"general-peer/pkg/models"
+	"log"
+	"net"
+)
+
+// ForwardQuery forwards the message to specified peers
+//depthPeers map[int]map[int][]models.Peer -- Legacy
+func ForwardQuery(peerId int, queryEmbed []float64, startPeerAddr *net.UDPAddr, genPeerConn *net.UDPConn) error {
+	if len(queryEmbed) != consts.EMBED_DIM {
+		return fmt.Errorf("embedding dimension mismatch: expected %v", consts.EMBED_DIM)
+	}
+
+	msg := models.MessageToPeer{QueryEmbed: queryEmbed, PeerId: peerId}
+	msgBytes, err := json.Marshal(msg)
+	if(err != nil){
+		return fmt.Errorf("error during marshalling of msg: %v", err.Error())
+	}
+
+	n,err := genPeerConn.WriteToUDP(msgBytes, startPeerAddr)
+	if(err != nil){
+		return fmt.Errorf("error while writing to starting peer: %v", err.Error())
+	} else {
+		log.Printf("Written %v bytes to %+v", n, startPeerAddr)
+	}
+	return nil
+	// Looking up depth first and then parent
+	// depthMap, ok := depthPeers[msg.Depth]
+	// if !ok {
+	// 	return errors.New("no peers configured for this depth")
+	// }
+	// peers, ok := depthMap[parentID]
+	// if !ok || len(peers) == 0 {
+	// 	return errors.New("no peers configured under parent for this depth")
+	// }
+
+	// // Send to all peers under this parent:
+	// for _, peer := range peers { //iterate over all peers at this depth and parent
+
+	// 	peerAddr := &net.UDPAddr{
+	// 		IP:   net.ParseIP(peer.IP),
+	// 		Port: peer.Port,
+	// 	}
+
+	// 	connOut, err := net.DialUDP("udp", nil, peerAddr)
+	// 	if err != nil { //error creating the socket
+	// 		log.Printf("Error dialing Depth %d peer %v: %v", msg.Depth, peer.ID, err)
+	// 		continue
+	// 	}
+	// 	defer connOut.Close()
+
+	// 	msgBytes, err := json.Marshal(msg)
+
+	// 	_, err = connOut.Write(msgBytes)
+	// 	if err != nil {
+	// 		log.Printf("Error sending to Depth %d peer %v: %v", msg.Depth, peer.ID, err)
+	// 		continue
+	// 	}
+
+	// 	log.Printf("Sent message to Depth %d peer %v under parent %d at %v:%v", msg.Depth, peer.ID, parentID, peer.IP, peer.Port)
+	// }
+
+}
