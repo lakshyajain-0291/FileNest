@@ -57,7 +57,13 @@ func bigIntToBinaryInt(bigNum *big.Int) int {
 	last8Bytes := bytes[len(bytes)-8:]
 
 	// Convert bytes to int64 using big endian
-	return int(int64(binary.BigEndian.Uint64(last8Bytes)))
+	result := int(int64(binary.BigEndian.Uint64(last8Bytes)))
+
+	if result < 0 {
+		result = -result
+	}
+
+	return result
 }
 
 func generatePeerID(name string, ipaddr string) int {

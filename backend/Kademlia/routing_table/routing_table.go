@@ -26,7 +26,7 @@ const (
 	AlphaValue      = 3         // Concurrency
 	RefreshInterval = time.Hour // How often to refresh buckets
 	PingTimeout     = 10 * time.Second
-	uploadInterval  = 24 * time.Hour // how often to upload records to the database
+	uploadInterval  = 1 * time.Hour // how often to upload records to the database
 )
 
 // Contact represents a peer in the network
@@ -79,83 +79,131 @@ type RoutingTable struct {
 
 type CentralDB struct {
 	gorm.Model
-	peerID       int    `gorm:"primarykey"`
-	multiaddress string `gorm:"not null"`
+	PeerID       int    `gorm:"primarykey"`
+	Multiaddress string `gorm:"column:multiaddress;not null"`
 }
 
-// a func for every peer to upload their peerid and multiaddr to the db
-// this func will be called periodically as a goroutine inside the create routing table function
+func DebugCentralDB(db_name string) {
+	db, err := gorm.Open(sqlite.Open(db_name), &gorm.Config{})
+	if err != nil {
+		log.Printf("Failed to connect: %v", err)
+		return
+	}
+
+	// Check if table exists
+	hasTable := db.Migrator().HasTable(&CentralDB{})
+	fmt.Printf("Table exists: %t\n", hasTable)
+
+	// Count total records
+	var count int64
+	db.Model(&CentralDB{}).Count(&count)
+	fmt.Printf("Total records in table: %d\n", count)
+
+	// Enable debug mode to see SQL queries
+	db = db.Debug()
+
+	var peers []CentralDB
+	result := db.Find(&peers)
+
+	fmt.Printf("Query error: %v\n", result.Error)
+	fmt.Printf("Rows affected: %d\n", result.RowsAffected)
+	fmt.Printf("Records retrieved: %d\n", len(peers))
+}
+
 func (rt *RoutingTable) uploadtoCentralDB(db_name string, peerid int, host host.Host) {
 
-	go func() {
-        ticker := time.NewTicker(uploadInterval)
-        defer ticker.Stop()
-        
-        db, err := gorm.Open(sqlite.Open(db_name), &gorm.Config{})
-        if err != nil {
-            log.Printf("Failed to connect to database: %v", err)
-            return
-        }
-        
-        for {
-            select {
-            case <-ticker.C:
-                // Get CURRENT IP each time - not a parameter
-                currentAddrs := host.Addrs()
-                if len(currentAddrs) > 0 {
-                    currentIP := currentAddrs[0].String()
-					metadata := CentralDB{peerID: peerid, multiaddress: currentIP}
-					results := db.Save(&metadata)
+	fmt.Println("Starting upload for the goroutine")
 
-					if results.Error != nil{
-						fmt.Printf("Could not upload the data to the central database: %v", results.Error)
-					}else{
-						fmt.Printf("Uploaded the data successfully")
-					}
-				
-                }
-                
-            case <-rt.ctx.Done():
-                return
-            }
-        }
-    }()
+	ticker := time.NewTicker(uploadInterval)
+	defer ticker.Stop()
+
+	db, err := gorm.Open(sqlite.Open(db_name), &gorm.Config{})
+	if err != nil {
+		log.Printf("Failed to connect to database: %v\n", err)
+		return
+	}
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Printf("Failed to get underlying sql.DB: %v", err)
+		return
+	}
+	defer sqlDB.Close()
+
+	new_err := db.AutoMigrate(&CentralDB{})
+	if new_err != nil {
+		log.Printf("Migration error: %v", new_err)
+		return
+	} else {
+		fmt.Println("Database migration completed successfully!")
+	}
+
+	fmt.Println("Table created successfully!")
+
+	for {
+		select {
+		case <-ticker.C:
+			// Get CURRENT IP each time - not a parameter
+			currentAddrs := host.Addrs()
+			if len(currentAddrs) > 0 {
+				currentIP := currentAddrs[0].String()
+				metadata := CentralDB{PeerID: peerid, Multiaddress: currentIP}
+				results := db.Save(&metadata)
+				fmt.Println("saved to centraldb")
+
+				if results.Error != nil {
+					fmt.Printf("Could not upload the data to the central database: %v\n", results.Error)
+				} else {
+					fmt.Printf("Uploaded the data successfully\n")
+				}
+
+			}
+
+		case <-rt.ctx.Done():
+			return
+		}
+	}
 }
 
-// a func to fetch the routing table records and for a new peer
-// this func will fetch the routing table only once when the peer is created initially.
-// to ensure that you are not fetching from the central db once you have joined the network,
-// just check if routing_table.db is empty or not.
-
-func (rt *RoutingTable) fetchfromCentralDB(central_db_name string, local_db_name string) {
+func (rt *RoutingTable) fetchfromCentralDB(central_db_name string) {
 	// first read all the records
 	central_db, err := gorm.Open(sqlite.Open(central_db_name), &gorm.Config{})
 	if err != nil {
-		log.Printf("Failed to connect to database: %v", err)
+		log.Printf("Failed to connect to database: %v\n", err)
 		return
 	}
+
+	sqlDB, err := central_db.DB()
+	if err != nil {
+		log.Printf("Failed to get underlying sql.DB: %v", err)
+		return
+	}
+	defer sqlDB.Close()
 
 	routing_table_peers := rt.GetAllPeers()
 	var peers []CentralDB
 	result := central_db.Find(&peers)
 
 	if result.Error != nil {
-		log.Printf("Error reading records: %v", result.Error)
-	} else {
-		fmt.Printf("Found %d records\n", result.RowsAffected)
+		log.Printf("Error reading records: %v\n", result.Error)
+	}
+
+	for _, peer := range peers {
+		fmt.Printf("peerid: %d | multiaddr: %s\n", peer.PeerID, peer.Multiaddress)
 	}
 
 	// then add these records to the routing table using add_peer
-	if len(routing_table_peers) == 0{
-		for _, peer := range peers{
-		addr, err := multiaddr.NewMultiaddr(peer.multiaddress)
-		if err != nil{
-			fmt.Printf("Could not convert the string to multiaddr.Multiaddr: %v", err)
+	if len(routing_table_peers) == 0 {
+		for _, peer := range peers {
+			addr, err := multiaddr.NewMultiaddr(peer.Multiaddress)
+			if err != nil {
+				fmt.Printf("Could not convert the string to multiaddr.Multiaddr: %v\n", err)
+			}
+			rt.AddPeer(peer.PeerID, addr)
 		}
-		rt.AddPeer(peer.peerID, addr)
-		}
-	}else{
+	} else {
 		rt.LoadFromDatabase()
+		rt.PrintRoutingTable()
 	}
 }
 
@@ -180,7 +228,7 @@ func NewRoutingTable(localID int, host host.Host) *RoutingTable {
 	}
 
 	// goroutine for updating the centralDB regularly
-	go rt.uploadtoCentralDB("CentralDB.db", localID, host)
+	// DebugCentralDB("CentralDB.db")
 
 	// Initialize database connection
 	db, err := gorm.Open(sqlite.Open("routing_table.db"), &gorm.Config{})
@@ -194,8 +242,12 @@ func NewRoutingTable(localID int, host host.Host) *RoutingTable {
 			log.Printf("Failed to migrate database: %v", err)
 		}
 	}
-	rt.fetchfromCentralDB("CentralDB.db", "routing_table.db")
 
+	rt.fetchfromCentralDB("CentralDB.db")
+
+	go rt.uploadtoCentralDB("CentralDB.db", localID, host)
+
+	rt.PrintRoutingTable()
 	// Start maintenance routines
 	go rt.maintainBuckets(host)
 
@@ -785,6 +837,8 @@ func (rt *RoutingTable) UpdateFromDatabase() error {
 
 	return nil
 }
+
+// REDUNDANT
 
 // prints the current state of the routing table
 func (rt *RoutingTable) PrintRoutingTable() {
