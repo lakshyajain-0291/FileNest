@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	webrtcdirect "github.com/libp2p/go-libp2p-webrtc-direct"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
@@ -101,8 +102,11 @@ func generatePeerID(name string, ipaddr string) int {
 var rt *routing_table.RoutingTable
 
 func main() {
-	host, err := libp2p.New(libp2p.Transport(tcp.NewTCPTransport),
-		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
+	host, err := libp2p.New(
+		libp2p.Transport(tcp.NewTCPTransport),
+		libp2p.Transport(webrtcdirect.NewTransport), // Add WebRTC
+		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0", "/ip4/0.0.0.0/udp/0/webrtc-direct"),
+	)
 
 	if err != nil {
 		log.Fatal(err)
