@@ -3,6 +3,7 @@ import json
 from sklearn.cluster import KMeans
 from helpers.helpers import load_texts, form_cluster_embed_map
 from Models import nomic_text
+import zmq
 
 TEXT_FOLDER = r"ai/files/txt_files"
 BOOTSTRAP_CLUSTERS = 3  # Tune as per requirement
@@ -37,7 +38,15 @@ for cluster_id in cluster_embed_map:
                 "embedding": embeddings[idx].tolist()
             })
     cluster_data.append(cluster_info)
-
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 with open(os.path.join(OUTPUT_FOLDER, "cluster_embeddings.json"), "w") as f:
     json.dump({"Clusters": cluster_data}, f, indent=2)
+
+context = zmq.Context()
+socket = context.socket(zmq.PUSH)  # Socket of Response Type
+socket.bind("tcp://127.0.0.1:5555")  # Socket will communicate to this addr
+
+print("sending json")
+socket.send_json({"Clusters": cluster_data})
+print("json sent")
+print({"Clusters": cluster_data})
