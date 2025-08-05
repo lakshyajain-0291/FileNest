@@ -11,27 +11,36 @@ type RoutingTable struct {
     nodeID   []byte
     buckets  [][]Contact
     mutex    sync.RWMutex
+    lastUpdated time.Time
 }
 
 func NewRoutingTable(nodeID []byte) *RoutingTable {
     return &RoutingTable{
-        nodeID:  nodeID,
-        buckets: make([][]Contact, KeySize*8),
+        nodeID:      nodeID,
+        buckets:     make([][]Contact, KeySize*8),
+        lastUpdated: time.Now(),
     }
 }
 
-func (rt *RoutingTable) AddContact(peerID peer.ID, addrs []string) {
+func (rt *RoutingTable) AddContact(peerID peer.ID, addrs []string) bool {
     if peerID == "" {
-        return
+        return false
     }
     
-    distance := XORDistance(rt.nodeID, []byte(peerID))
+    // Generate node ID for this peer (in production, this should come from the peer)
+    peerNodeID := GenerateNodeID(peerID)
+    distance := XORDistance(rt.nodeID, peerNodeID)
     bucketIndex := getBucketIndex(distance)
     
     contact := Contact{
         ID:       peerID,
         Addrs:    addrs,
         LastSeen: time.Now(),
+        NodeID:   peerNodeID,
+    }
+    
+    if !contact.IsValid() {
+        return false
     }
     
     rt.mutex.Lock()
@@ -39,21 +48,54 @@ func (rt *RoutingTable) AddContact(peerID peer.ID, addrs []string) {
     
     bucket := rt.buckets[bucketIndex]
     
-    // Check if already exists
+    // Check if already exists - update if so
     for i, c := range bucket {
         if c.ID == peerID {
             rt.buckets[bucketIndex][i] = contact
-            return
+            rt.lastUpdated = time.Now()
+            return true
         }
     }
     
     // Add new contact
     if len(bucket) < BucketSize {
         rt.buckets[bucketIndex] = append(bucket, contact)
-    } else {
-        // Replace oldest
-        rt.buckets[bucketIndex][0] = contact
+        rt.lastUpdated = time.Now()
+        return true
     }
+    
+    // Bucket full - LRU replacement
+    oldestIndex := 0
+    oldestTime := bucket[0].LastSeen
+    for i, c := range bucket {
+        if c.LastSeen.Before(oldestTime) {
+            oldestIndex = i
+            oldestTime = c.LastSeen
+        }
+    }
+    
+    rt.buckets[bucketIndex][oldestIndex] = contact
+    rt.lastUpdated = time.Now()
+    return true
+}
+
+func (rt *RoutingTable) RemoveContact(peerID peer.ID) bool {
+    peerNodeID := GenerateNodeID(peerID)
+    distance := XORDistance(rt.nodeID, peerNodeID)
+    bucketIndex := getBucketIndex(distance)
+    
+    rt.mutex.Lock()
+    defer rt.mutex.Unlock()
+    
+    bucket := rt.buckets[bucketIndex]
+    for i, contact := range bucket {
+        if contact.ID == peerID {
+            rt.buckets[bucketIndex] = append(bucket[:i], bucket[i+1:]...)
+            rt.lastUpdated = time.Now()
+            return true
+        }
+    }
+    return false
 }
 
 func (rt *RoutingTable) FindClosest(target []byte, k int) []Contact {
@@ -67,8 +109,8 @@ func (rt *RoutingTable) FindClosest(target []byte, k int) []Contact {
     
     // Sort by distance to target
     sort.Slice(contacts, func(i, j int) bool {
-        di := XORDistance([]byte(contacts[i].ID), target)
-        dj := XORDistance([]byte(contacts[j].ID), target)
+        di := XORDistance(contacts[i].NodeID, target)
+        dj := XORDistance(contacts[j].NodeID, target)
         return compareDistance(di, dj) < 0
     })
     
@@ -76,6 +118,17 @@ func (rt *RoutingTable) FindClosest(target []byte, k int) []Contact {
         k = len(contacts)
     }
     return contacts[:k]
+}
+
+func (rt *RoutingTable) GetAllContacts() []Contact {
+    rt.mutex.RLock()
+    defer rt.mutex.RUnlock()
+    
+    var contacts []Contact
+    for _, bucket := range rt.buckets {
+        contacts = append(contacts, bucket...)
+    }
+    return contacts
 }
 
 func (rt *RoutingTable) GetPeerCount() int {
@@ -89,10 +142,55 @@ func (rt *RoutingTable) GetPeerCount() int {
     return count
 }
 
+func (rt *RoutingTable) GetBucketInfo() map[int]int {
+    rt.mutex.RLock()
+    defer rt.mutex.RUnlock()
+    
+    info := make(map[int]int)
+    for i, bucket := range rt.buckets {
+        if len(bucket) > 0 {
+            info[i] = len(bucket)
+        }
+    }
+    return info
+}
+
+// Cleanup removes stale contacts
+func (rt *RoutingTable) Cleanup(maxAge time.Duration) int {
+    rt.mutex.Lock()
+    defer rt.mutex.Unlock()
+    
+    removed := 0
+    now := time.Now()
+    
+    for i, bucket := range rt.buckets {
+        var newBucket []Contact
+        for _, contact := range bucket {
+            if now.Sub(contact.LastSeen) <= maxAge {
+                newBucket = append(newBucket, contact)
+            } else {
+                removed++
+            }
+        }
+        rt.buckets[i] = newBucket
+    }
+    
+    if removed > 0 {
+        rt.lastUpdated = time.Now()
+    }
+    
+    return removed
+}
+
 // Helper functions
 func XORDistance(a, b []byte) []byte {
     distance := make([]byte, KeySize)
-    for i := 0; i < KeySize && i < len(a) && i < len(b); i++ {
+    minLen := len(a)
+    if len(b) < minLen {
+        minLen = len(b)
+    }
+    
+    for i := 0; i < minLen; i++ {
         distance[i] = a[i] ^ b[i]
     }
     return distance
