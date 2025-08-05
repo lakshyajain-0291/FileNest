@@ -11,100 +11,71 @@ import (
     "github.com/libp2p/go-libp2p/core/peer"
 )
 
-// KademliaNode represents a Kademlia DHT node
-type KademliaNode struct {
-    host            host.Host
-    protocolHandler *KademliaProtocolHandler
-    ctx             context.Context
-    cancel          context.CancelFunc
-    bootstrapPeers  []peer.ID
-    refreshInterval time.Duration
-    mutex           sync.RWMutex
+type Node struct {
+    host     host.Host
+    nodeID   []byte
+    routing  *RoutingTable
+    protocol *ProtocolHandler
+    ctx      context.Context
+    cancel   context.CancelFunc
 }
 
-// NewKademliaNode creates a new Kademlia node
-func NewKademliaNode(h host.Host, bootstrapPeers []peer.ID) *KademliaNode {
+func NewNode(host host.Host, dataDir string) (*Node, error) {
+    // Get persistent node ID
+    nodeID, err := GetOrCreateNodeID(dataDir, host.ID())
+    if err != nil {
+        return nil, err
+    }
+
     ctx, cancel := context.WithCancel(context.Background())
-    
-    node := &KademliaNode{
-        host:            h,
-        protocolHandler: NewKademliaProtocolHandler(h),
-        ctx:             ctx,
-        cancel:          cancel,
-        bootstrapPeers:  bootstrapPeers,
-        refreshInterval: 1 * time.Hour, // Refresh routing table every hour
-    }
+    routing := NewRoutingTable(nodeID)
+    protocol := NewProtocolHandler(host, routing)
 
-    return node
+    return &Node{
+        host:     host,
+        nodeID:   nodeID,
+        routing:  routing,
+        protocol: protocol,
+        ctx:      ctx,
+        cancel:   cancel,
+    }, nil
 }
 
-// Start starts the Kademlia node
-func (kn *KademliaNode) Start() error {
-    fmt.Printf("Starting Kademlia node with ID: %s\n", kn.host.ID())
-
-    // Bootstrap the node
-    if err := kn.bootstrap(); err != nil {
-        return fmt.Errorf("bootstrap failed: %w", err)
-    }
-
-    // Start periodic refresh
-    go kn.periodicRefresh()
-
-    return nil
-}
-
-// Stop stops the Kademlia node
-func (kn *KademliaNode) Stop() {
-    kn.cancel()
-}
-
-// bootstrap connects to bootstrap peers and populates routing table
-func (kn *KademliaNode) bootstrap() error {
-    if len(kn.bootstrapPeers) == 0 {
-        fmt.Println("No bootstrap peers provided")
-        return nil
-    }
-
-    fmt.Printf("Bootstrapping with %d peers\n", len(kn.bootstrapPeers))
-
-    for _, peerID := range kn.bootstrapPeers {
-        // Connect to bootstrap peer
-        err := kn.host.Connect(kn.ctx, peer.AddrInfo{ID: peerID})
+func (n *Node) Bootstrap(bootstrapPeers []peer.ID) error {
+    for _, peerID := range bootstrapPeers {
+        // Connect
+        err := n.host.Connect(n.ctx, peer.AddrInfo{ID: peerID})
         if err != nil {
-            fmt.Printf("Failed to connect to bootstrap peer %s: %v\n", peerID, err)
+            fmt.Printf("Failed to connect to %s: %v\n", peerID, err)
             continue
         }
 
-        // Ping the peer
-        msg := &KademliaMessage{Type: PING}
-        _, err = kn.protocolHandler.SendMessage(kn.ctx, peerID, msg)
+        // Ping
+        msg := &Message{Type: PING}
+        _, err = n.protocol.SendMessage(n.ctx, peerID, msg)
         if err != nil {
-            fmt.Printf("Failed to ping bootstrap peer %s: %v\n", peerID, err)
+            fmt.Printf("Failed to ping %s: %v\n", peerID, err)
             continue
         }
 
-        fmt.Printf("Successfully connected to bootstrap peer: %s\n", peerID)
+        fmt.Printf("Connected to bootstrap peer: %s\n", peerID)
     }
 
-    // Perform node lookup for our own ID to populate routing table
-    localIDBytes := sha256.Sum256([]byte(kn.host.ID()))
-    _, err := kn.FindNode(localIDBytes[:])
+    // Find nodes close to ourselves
+    _, err := n.FindNode(n.nodeID)
     return err
 }
 
-// FindNode performs iterative node lookup
-func (kn *KademliaNode) FindNode(target []byte) ([]Contact, error) {
-    shortlist := kn.protocolHandler.routingTable.FindClosestContacts(target, Alpha)
-    
+func (n *Node) FindNode(target []byte) ([]Contact, error) {
+    shortlist := n.routing.FindClosest(target, Alpha)
     if len(shortlist) == 0 {
-        return nil, fmt.Errorf("no contacts in routing table")
+        return nil, fmt.Errorf("no contacts")
     }
 
     queried := make(map[peer.ID]bool)
     var allContacts []Contact
     var mutex sync.Mutex
 
-    // Iterative lookup
     for len(shortlist) > 0 && len(allContacts) < BucketSize {
         var wg sync.WaitGroup
         queries := 0
@@ -120,13 +91,8 @@ func (kn *KademliaNode) FindNode(target []byte) ([]Contact, error) {
             wg.Add(1)
             go func(c Contact) {
                 defer wg.Done()
-
-                msg := &KademliaMessage{
-                    Type: FIND_NODE,
-                    Key:  target,
-                }
-
-                response, err := kn.protocolHandler.SendMessage(kn.ctx, c.ID, msg)
+                msg := &Message{Type: FIND_NODE, Key: target}
+                response, err := n.protocol.SendMessage(n.ctx, c.ID, msg)
                 if err != nil {
                     return
                 }
@@ -137,11 +103,10 @@ func (kn *KademliaNode) FindNode(target []byte) ([]Contact, error) {
                         contact := Contact{
                             ID:       peerInfo.ID,
                             Addrs:    peerInfo.Addrs,
-                            Distance: XOR([]byte(peerInfo.ID), target),
                             LastSeen: time.Now(),
                         }
                         allContacts = append(allContacts, contact)
-                        kn.protocolHandler.routingTable.AddContact(contact.ID, contact.Addrs)
+                        n.routing.AddContact(contact.ID, contact.Addrs)
                     }
                     mutex.Unlock()
                 }
@@ -150,115 +115,72 @@ func (kn *KademliaNode) FindNode(target []byte) ([]Contact, error) {
 
         wg.Wait()
 
-        // Update shortlist with closest unqueried contacts
-        allUnqueried := GetKClosest(allContacts, target, BucketSize)
+        // Update shortlist
+        closest := n.routing.FindClosest(target, BucketSize)
         shortlist = nil
-        for _, contact := range allUnqueried {
+        for _, contact := range closest {
             if !queried[contact.ID] {
                 shortlist = append(shortlist, contact)
             }
         }
     }
 
-    return GetKClosest(allContacts, target, BucketSize), nil
+    return n.routing.FindClosest(target, BucketSize), nil
 }
 
-// Store stores a key-value pair in the DHT
-func (kn *KademliaNode) Store(key, value []byte) error {
+func (n *Node) Store(key, value []byte) error {
     keyHash := sha256.Sum256(key)
-    contacts, err := kn.FindNode(keyHash[:])
+    contacts, err := n.FindNode(keyHash[:])
     if err != nil {
         return err
     }
 
     var wg sync.WaitGroup
-    successCount := 0
-    var mutex sync.Mutex
-
     for _, contact := range contacts {
         wg.Add(1)
         go func(c Contact) {
             defer wg.Done()
-
-            msg := &KademliaMessage{
-                Type:  STORE,
-                Key:   keyHash[:],
-                Value: value,
-            }
-
-            _, err := kn.protocolHandler.SendMessage(kn.ctx, c.ID, msg)
-            if err == nil {
-                mutex.Lock()
-                successCount++
-                mutex.Unlock()
-            }
+            msg := &Message{Type: STORE, Key: keyHash[:], Value: value}
+            n.protocol.SendMessage(n.ctx, c.ID, msg)
         }(contact)
     }
-
     wg.Wait()
 
-    if successCount == 0 {
-        return fmt.Errorf("failed to store value on any node")
-    }
-
-    fmt.Printf("Successfully stored value on %d nodes\n", successCount)
+    fmt.Printf("Stored on %d nodes\n", len(contacts))
     return nil
 }
 
-// FindValue finds a value in the DHT
-func (kn *KademliaNode) FindValue(key []byte) ([]byte, error) {
+func (n *Node) FindValue(key []byte) ([]byte, error) {
     keyHash := sha256.Sum256(key)
-    shortlist := kn.protocolHandler.routingTable.FindClosestContacts(keyHash[:], Alpha)
-    
-    if len(shortlist) == 0 {
-        return nil, fmt.Errorf("no contacts in routing table")
-    }
-
+    shortlist := n.routing.FindClosest(keyHash[:], Alpha)
     queried := make(map[peer.ID]bool)
 
-    // Iterative value lookup
     for len(shortlist) > 0 {
         var wg sync.WaitGroup
         var foundValue []byte
         var mutex sync.Mutex
-        queries := 0
 
-        for i := 0; i < len(shortlist) && queries < Alpha; i++ {
-            contact := shortlist[i]
+        for _, contact := range shortlist {
             if queried[contact.ID] {
                 continue
             }
             queried[contact.ID] = true
-            queries++
 
             wg.Add(1)
             go func(c Contact) {
                 defer wg.Done()
-
-                msg := &KademliaMessage{
-                    Type: FIND_VALUE,
-                    Key:  keyHash[:],
-                }
-
-                response, err := kn.protocolHandler.SendMessage(kn.ctx, c.ID, msg)
+                msg := &Message{Type: FIND_VALUE, Key: keyHash[:]}
+                response, err := n.protocol.SendMessage(n.ctx, c.ID, msg)
                 if err != nil {
                     return
                 }
 
-                if response.Type == FIND_VALUE_RESPONSE {
-                    if response.Found {
-                        mutex.Lock()
-                        if foundValue == nil {
-                            foundValue = response.Value
-                        }
-                        mutex.Unlock()
-                        return
+                if response.Type == FIND_VALUE_RESPONSE && response.Found {
+                    mutex.Lock()
+                    if foundValue == nil {
+                        foundValue = response.Value
                     }
-
-                    // Update routing table with returned contacts
-                    for _, peerInfo := range response.Peers {
-                        kn.protocolHandler.routingTable.AddContact(peerInfo.ID, peerInfo.Addrs)
-                    }
+                    mutex.Unlock()
                 }
             }(contact)
         }
@@ -269,8 +191,8 @@ func (kn *KademliaNode) FindValue(key []byte) ([]byte, error) {
             return foundValue, nil
         }
 
-        // Update shortlist with closest unqueried contacts
-        contacts := kn.protocolHandler.routingTable.FindClosestContacts(keyHash[:], BucketSize)
+        // Update shortlist
+        contacts := n.routing.FindClosest(keyHash[:], BucketSize)
         shortlist = nil
         for _, contact := range contacts {
             if !queried[contact.ID] {
@@ -282,40 +204,22 @@ func (kn *KademliaNode) FindValue(key []byte) ([]byte, error) {
     return nil, fmt.Errorf("value not found")
 }
 
-// periodicRefresh performs periodic routing table maintenance
-func (kn *KademliaNode) periodicRefresh() {
-    ticker := time.NewTicker(kn.refreshInterval)
-    defer ticker.Stop()
-
-    for {
-        select {
-        case <-ticker.C:
-            kn.refresh()
-        case <-kn.ctx.Done():
-            return
-        }
-    }
-}
-
-// refresh performs routing table refresh
-func (kn *KademliaNode) refresh() {
-    fmt.Println("Performing routing table refresh...")
-    
-    // Refresh each bucket by performing random lookups
-    localIDBytes := sha256.Sum256([]byte(kn.host.ID()))
-    
-    // Perform a lookup for our own ID to refresh contacts
-    _, err := kn.FindNode(localIDBytes[:])
+func (n *Node) Ping(peerID peer.ID) error {
+    msg := &Message{Type: PING}
+    response, err := n.protocol.SendMessage(n.ctx, peerID, msg)
     if err != nil {
-        fmt.Printf("Refresh lookup failed: %v\n", err)
+        return err
     }
+    if response.Type != PONG {
+        return fmt.Errorf("expected PONG")
+    }
+    return nil
 }
 
-// GetPeerCount returns the number of peers in the routing table
-func (kn *KademliaNode) GetPeerCount() int {
-    count := 0
-    for i := 0; i < KeySize*8; i++ {
-        count += kn.protocolHandler.routingTable.buckets[i].Size()
-    }
-    return count
+func (n *Node) GetPeerCount() int {
+    return n.routing.GetPeerCount()
+}
+
+func (n *Node) Stop() {
+    n.cancel()
 }
