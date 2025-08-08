@@ -13,7 +13,7 @@ import (
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
-
+    ws "github.com/libp2p/go-libp2p/p2p/transport/websocket"
 	"kademlia-libp2p/kademlia"
 )
 
@@ -24,9 +24,10 @@ func main() {
 	autoStart := flag.Bool("autostart", true, "Automatically start the node")
 	flag.Parse()
 
-	// Create libp2p host - REMOVED EnableAutoRelay()
+	// Create libp2p host
 	host, err := libp2p.New(
-		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", *port)),
+		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d/ws", *port)),
+		libp2p.Transport(ws.New),
 	)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create libp2p host: %v", err))
@@ -121,7 +122,9 @@ func main() {
 	fmt.Println("  contacts                 - Show all contacts")
 	fmt.Println("  buckets                  - Show bucket information")
 	fmt.Println("  storage                  - Show stored keys")
+	fmt.Println("  dbstats                  - Show database statistics")
 	fmt.Println("  info                     - Show node information")
+	fmt.Println("  debug                    - Show debug information")
 	fmt.Println("  help                     - Show this help message")
 	fmt.Println("  quit                     - Exit the program")
 	fmt.Println()
@@ -288,6 +291,13 @@ func main() {
 				}
 			}
 
+		case "dbstats":
+			stats := node.GetDatabaseStats()
+			fmt.Printf("Database Statistics:\n")
+			for key, value := range stats {
+				fmt.Printf("  %s: %v\n", key, value)
+			}
+
 		case "info":
 			fmt.Printf("Node Information:\n")
 			fmt.Printf("  Running: %v\n", node.IsRunning())
@@ -303,16 +313,6 @@ func main() {
 				fmt.Printf("    %s/p2p/%s\n", addr, host.ID())
 			}
 
-		case "help":
-			fmt.Println("Available commands:")
-			fmt.Println("  start, stop, store <key> <value>, get <key>")
-			fmt.Println("  ping <peer_id>, peers, contacts, buckets")
-			fmt.Println("  storage, info, help, quit")
-
-		case "quit", "exit":
-			fmt.Println("Shutting down...")
-			return
-
 		case "debug":
 			fmt.Printf("=== Debug Information ===\n")
 			contacts := node.GetAllContacts()
@@ -326,6 +326,16 @@ func main() {
 				fmt.Printf("   Last seen: %v\n", contact.LastSeen)
 				fmt.Println()
 			}
+
+		case "help":
+			fmt.Println("Available commands:")
+			fmt.Println("  start, stop, store <key> <value>, get <key>")
+			fmt.Println("  ping <peer_id>, peers, contacts, buckets")
+			fmt.Println("  storage, dbstats, info, debug, help, quit")
+
+		case "quit", "exit":
+			fmt.Println("Shutting down...")
+			return
 
 		default:
 			// Check if it's a shortcut for common operations

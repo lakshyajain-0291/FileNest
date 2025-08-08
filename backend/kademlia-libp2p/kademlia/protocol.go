@@ -7,6 +7,7 @@ import (
     "io"
     "strings"
     "sync"
+    "sync/atomic"
     "time"
 
     "github.com/google/uuid"
@@ -19,23 +20,32 @@ import (
 type ProtocolHandler struct {
     host         host.Host
     routingTable *RoutingTable
-    dataStore    map[string][]byte
+    dataStore    *DataStore
     pending      map[string]chan *Message
     mutex        sync.RWMutex
     nodeID       []byte
+    
+    // Statistics
+    messagesSent int64
+    messagesRecv int64
 }
 
-func NewProtocolHandler(host host.Host, routingTable *RoutingTable, nodeID []byte) *ProtocolHandler {
+func NewProtocolHandler(host host.Host, routingTable *RoutingTable, nodeID []byte, dataDir string) (*ProtocolHandler, error) {
+    dataStore, err := NewDataStore(dataDir)
+    if err != nil {
+        return nil, fmt.Errorf("failed to create datastore: %w", err)
+    }
+
     ph := &ProtocolHandler{
         host:         host,
         routingTable: routingTable,
-        dataStore:    make(map[string][]byte),
+        dataStore:    dataStore,
         pending:      make(map[string]chan *Message),
         nodeID:       nodeID,
     }
-
+    
     host.SetStreamHandler(protocol.ID(ProtocolID), ph.handleStream)
-    return ph
+    return ph, nil
 }
 
 func (ph *ProtocolHandler) handleStream(s network.Stream) {
@@ -114,6 +124,9 @@ func (ph *ProtocolHandler) extractAddresses(s network.Stream) []string {
 }
 
 func (ph *ProtocolHandler) handleMessage(msg *Message, remotePeer peer.ID, addrs []string) *Message {
+    // Increment received messages counter
+    atomic.AddInt64(&ph.messagesRecv, 1)
+    
     // Always update routing table when we receive a message
     ph.routingTable.AddContact(remotePeer, addrs)
 
@@ -128,9 +141,8 @@ func (ph *ProtocolHandler) handleMessage(msg *Message, remotePeer peer.ID, addrs
 
     case PONG:
         fmt.Printf("Received PONG from %s\n", remotePeer)
-        // Handle pong response - DO NOT return another message
         ph.notifyPending(msg)
-        return nil  // ← FIXED: Return nil for PONG
+        return nil
 
     case FIND_NODE:
         contacts := ph.routingTable.FindClosest(msg.Key, BucketSize)
@@ -154,11 +166,13 @@ func (ph *ProtocolHandler) handleMessage(msg *Message, remotePeer peer.ID, addrs
         }
 
     case STORE:
-        ph.mutex.Lock()
-        ph.dataStore[string(msg.Key)] = msg.Value
-        ph.mutex.Unlock()
-        
-        fmt.Printf("Stored key: %x (value length: %d)\n", msg.Key, len(msg.Value))
+        // Store with 24-hour TTL
+        err := ph.dataStore.Put(string(msg.Key), msg.Value, 24*time.Hour)
+        if err != nil {
+            fmt.Printf("Failed to store key: %v\n", err)
+        } else {
+            fmt.Printf("Stored key: %x (value length: %d)\n", msg.Key, len(msg.Value))
+        }
         
         return &Message{
             Type:      STORE_RESPONSE,
@@ -167,11 +181,8 @@ func (ph *ProtocolHandler) handleMessage(msg *Message, remotePeer peer.ID, addrs
         }
 
     case FIND_VALUE:
-        ph.mutex.RLock()
-        value, exists := ph.dataStore[string(msg.Key)]
-        ph.mutex.RUnlock()
-
-        if exists {
+        value, err := ph.dataStore.Get(string(msg.Key))
+        if err == nil {
             return &Message{
                 Type:      FIND_VALUE_RESPONSE,
                 ID:        msg.ID,
@@ -218,6 +229,9 @@ func (ph *ProtocolHandler) SendMessage(ctx context.Context, peerID peer.ID, msg 
     msg.Timestamp = time.Now().Unix()
 
     fmt.Printf("Sending %s to %s (ID: %s)\n", msg.Type, peerID, msg.ID) // Debug
+
+    // Increment sent messages counter
+    atomic.AddInt64(&ph.messagesSent, 1)
 
     responseChan := make(chan *Message, 1)
     ph.mutex.Lock()
@@ -289,18 +303,14 @@ func (ph *ProtocolHandler) notifyPending(msg *Message) {
 }
 
 func (ph *ProtocolHandler) GetStoredKeys() []string {
-    ph.mutex.RLock()
-    defer ph.mutex.RUnlock()
-    
-    keys := make([]string, 0, len(ph.dataStore))
-    for key := range ph.dataStore {
-        keys = append(keys, fmt.Sprintf("%x", key))
-    }
-    return keys
+    return ph.dataStore.GetStoredKeys()
 }
 
 func (ph *ProtocolHandler) GetStorageCount() int {
-    ph.mutex.RLock()
-    defer ph.mutex.RUnlock()
-    return len(ph.dataStore)
+    kvCount, _, _ := ph.dataStore.GetStorageInfo()
+    return int(kvCount)
+}
+
+func (ph *ProtocolHandler) GetMessageStats() (int64, int64) {
+    return atomic.LoadInt64(&ph.messagesSent), atomic.LoadInt64(&ph.messagesRecv)
 }
