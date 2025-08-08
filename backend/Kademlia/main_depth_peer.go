@@ -121,7 +121,7 @@ func main() {
 	host.SetStreamHandler("/jsonmessages/1.0.0", func(s network.Stream) {
 		findvalue.HandleJSONMessages(s, localPeerID, rt) // need to create a global routing table which is stored in memory
 	})
-
+	
 	fmt.Printf("Host ID: %d\n", localPeerID)
 	fmt.Printf("Listening on: %v\n", host.Addrs())
 

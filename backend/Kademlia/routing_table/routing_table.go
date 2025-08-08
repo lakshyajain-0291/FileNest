@@ -21,7 +21,7 @@ import (
 
 const (
 	// Kademlia constants
-	BucketSize      = 20        // K value
+	BucketSize      = 4        // K value
 	KeySize         = 64        // Updated for 64-bit integers
 	AlphaValue      = 3         // Concurrency
 	RefreshInterval = time.Hour // How often to refresh buckets
