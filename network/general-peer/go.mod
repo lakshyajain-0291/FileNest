@@ -3,6 +3,7 @@ module general-peer
 go 1.24.3
 
 require (
+	github.com/gorilla/websocket v1.5.3
 	github.com/libp2p/go-libp2p v0.42.1
 	github.com/multiformats/go-multiaddr v0.16.0
 	github.com/pebbe/zmq4 v1.4.0
@@ -20,7 +21,6 @@ require (
 	github.com/google/gopacket v1.1.19 // indirect
 	github.com/google/pprof v0.0.0-20250607225305-033d6d78b36a // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/huin/goupnp v1.3.0 // indirect
 	github.com/ipfs/go-cid v0.5.0 // indirect
 	github.com/ipfs/go-log/v2 v2.6.0 // indirect
