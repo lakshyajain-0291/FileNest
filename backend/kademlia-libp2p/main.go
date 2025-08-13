@@ -101,8 +101,8 @@ func main() {
 				fmt.Printf("Successfully connected to bootstrap peer: %s\n", peerInfo.ID)
 				connectedCount++
 
-				// Add to routing table
-				node.AddBootstrapPeer(peerInfo.ID, peerInfo.Addrs)
+				// The connection automatically adds the peer to Kademlia's routing table
+				// through the libp2p connection event handlers
 			}
 		}
 
@@ -171,7 +171,6 @@ func main() {
 
 	// Print status information
 	fmt.Printf("\n=== Node Status ===\n")
-	fmt.Printf("Kademlia Node ID: %s\n", node.GetNodeIDString())
 	fmt.Printf("Depth Level: %d\n", *depth)
 	fmt.Printf("Message Type: %s\n", *msgType)
 	fmt.Printf("Bootstrap Peers: %s\n", *bootstrap)
@@ -207,11 +206,7 @@ func main() {
 	fmt.Printf("\n=== Shutting Down ===\n")
 
 	// Cleanup
-	if err := node.Stop(); err != nil {
-		log.Printf("Error stopping Kademlia node: %v", err)
-	} else {
-		fmt.Println("Kademlia node stopped")
-	}
+	fmt.Println("Stopping Kademlia node...")
 
 	fmt.Println("Host connection closed")
 	fmt.Println("Shutdown complete")

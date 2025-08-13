@@ -104,6 +104,10 @@ func (knb *KademliaNetworkBridge) handleEmbeddingSearch(networkMsg NetworkMessag
 
     return nil
 }
+// GetHostPeerID returns the host peer ID for relay operations
+func (knb *KademliaNetworkBridge) GetHostPeerID() peer.ID {
+    return knb.hostPeerID
+}
 
 // Handle embedding store requests (uses modified store RPC in execution.go)
 func (knb *KademliaNetworkBridge) handleEmbeddingStore(networkMsg NetworkMessage) error {

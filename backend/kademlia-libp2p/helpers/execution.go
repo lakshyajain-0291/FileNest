@@ -82,6 +82,7 @@ var peerRequestCount = make(map[peer.ID]int)
 var peerRequestMutex sync.Mutex
 
 // Helper functions
+
 func byteToInt(nodeIDByte []byte) int {
 	if len(nodeIDByte) == 0 {
 		return 0
