@@ -242,6 +242,15 @@ func (n *Node) FindNode(target []byte) ([]Contact, error) {
     return n.routing.FindClosest(target, BucketSize), nil
 }
 
+// Add these methods to your Node struct
+func (n *Node) GetRoutingTable() *RoutingTable {
+    return n.routing
+}
+// Add this method to access the host
+func (n *Node) GetHost() host.Host {
+    return n.host
+}
+
 func (n *Node) Store(key, value []byte) error {
     keyHash := sha1.Sum(key)
     contacts, err := n.FindNode(keyHash[:])

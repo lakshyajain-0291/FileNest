@@ -22,6 +22,7 @@ func NewRoutingTable(nodeID []byte) *RoutingTable {
     }
 }
 
+
 func (rt *RoutingTable) AddContact(peerID peer.ID, addrs []string) bool {
     if peerID == "" {
         return false
