@@ -1,35 +1,41 @@
 package main
 
 import (
-	"bufio"
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"log"
 	"os"
-	"strconv"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/peer"
+	ws "github.com/libp2p/go-libp2p/p2p/transport/websocket"
 	"github.com/multiformats/go-multiaddr"
-    ws "github.com/libp2p/go-libp2p/p2p/transport/websocket"
+
+	"kademlia-libp2p/integration"
 	"kademlia-libp2p/kademlia"
 )
 
 func main() {
+	// Command line flags
 	port := flag.Int("port", 0, "Port to listen on (0 for random)")
 	bootstrap := flag.String("bootstrap", "", "Bootstrap peer addresses (comma separated)")
 	dataDir := flag.String("datadir", "./kademlia_data", "Data directory for persistent storage")
+	depth := flag.Int("depth", 2, "Node depth in embedding hierarchy (1-4)")
+	msgType := flag.String("type", "search", "Message type (search/store)")
 	autoStart := flag.Bool("autostart", true, "Automatically start the node")
 	flag.Parse()
 
-	for *port==9090 {
-		fmt.Printf("Port 9090 is busy. Please renter: ")
-		fmt.Scan(port)
-	}
+	fmt.Printf("=== Kademlia Node with Embedding Integration ===\n")
+	fmt.Printf("Starting node at depth %d, handling %s operations\n", *depth, *msgType)
+	fmt.Printf("Data Directory: %s\n", *dataDir)
 
-	// Create libp2p host
+	// Create libp2p host with WebSocket transport
 	host, err := libp2p.New(
 		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d/ws", *port)),
 		libp2p.Transport(ws.New),
@@ -39,9 +45,7 @@ func main() {
 	}
 	defer host.Close()
 
-	fmt.Printf("=== Kademlia Node ===\n")
 	fmt.Printf("Peer ID: %s\n", host.ID())
-	fmt.Printf("Data Directory: %s\n", *dataDir)
 	fmt.Printf("Listening on:\n")
 	for _, addr := range host.Addrs() {
 		fmt.Printf("  %s/p2p/%s\n", addr, host.ID())
@@ -53,309 +57,162 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create Kademlia node: %v", err))
 	}
-	defer node.Stop()
 
-	// Start the node if autostart is enabled
+	// Start Kademlia node if autostart is enabled
 	if *autoStart {
 		if err := node.Start(); err != nil {
 			panic(fmt.Sprintf("Failed to start node: %v", err))
 		}
+		fmt.Println("Kademlia node started successfully")
 	}
 
-	// Handle bootstrap peers
+	// Bootstrap connections if provided
 	if *bootstrap != "" {
-		fmt.Printf("Parsing bootstrap addresses...\n")
-		var bootstrapPeers []peer.ID
+		fmt.Printf("Attempting to bootstrap with: %s\n", *bootstrap)
 
-		for _, addrStr := range strings.Split(*bootstrap, ",") {
+		bootstrapAddrs := strings.Split(*bootstrap, ",")
+		connectedCount := 0
+
+		for _, addrStr := range bootstrapAddrs {
 			addrStr = strings.TrimSpace(addrStr)
 			if addrStr == "" {
 				continue
 			}
 
-			fmt.Printf("Processing bootstrap address: %s\n", addrStr)
-
 			maddr, err := multiaddr.NewMultiaddr(addrStr)
 			if err != nil {
-				fmt.Printf("Invalid bootstrap address %s: %v\n", addrStr, err)
+				log.Printf("Invalid multiaddr %s: %v", addrStr, err)
 				continue
 			}
 
 			peerInfo, err := peer.AddrInfoFromP2pAddr(maddr)
 			if err != nil {
-				fmt.Printf("Failed to extract peer info from %s: %v\n", addrStr, err)
+				log.Printf("Invalid peer info from %s: %v", addrStr, err)
 				continue
 			}
 
-			fmt.Printf("Extracted peer ID: %s\n", peerInfo.ID)
-			bootstrapPeers = append(bootstrapPeers, peerInfo.ID)
-
-			// Pre-connect to bootstrap peer
-			fmt.Printf("Pre-connecting to bootstrap peer %s...\n", peerInfo.ID)
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			err = host.Connect(ctx, *peerInfo)
 			cancel()
 
 			if err != nil {
-				fmt.Printf("Failed to pre-connect to bootstrap peer %s: %v\n", peerInfo.ID, err)
+				log.Printf("Failed to connect to bootstrap peer %s: %v", peerInfo.ID, err)
 			} else {
-				fmt.Printf("Pre-connected to bootstrap peer: %s\n", peerInfo.ID)
+				fmt.Printf("Successfully connected to bootstrap peer: %s\n", peerInfo.ID)
+				connectedCount++
+
+				// Add to routing table
+				node.AddBootstrapPeer(peerInfo.ID, peerInfo.Addrs)
 			}
 		}
 
-		if len(bootstrapPeers) > 0 && node.IsRunning() {
-			fmt.Printf("Starting Kademlia bootstrap with %d peers...\n", len(bootstrapPeers))
-			if err := node.Bootstrap(bootstrapPeers); err != nil {
-				fmt.Printf("Bootstrap failed: %v\n", err)
-			} else {
-				fmt.Println("Bootstrap completed successfully!")
-			}
-		} else if len(bootstrapPeers) == 0 {
-			fmt.Println("No valid bootstrap peers found")
-		}
-	}
-
-	// Interactive CLI
-	fmt.Println("=== Interactive CLI ===")
-	fmt.Println("Commands:")
-	fmt.Println("  start                    - Start the node")
-	fmt.Println("  stop                     - Stop the node")
-	fmt.Println("  store <key> <value>      - Store a key-value pair")
-	fmt.Println("  get <key>                - Retrieve a value by key")
-	fmt.Println("  ping <peer_id>           - Ping a specific peer")
-	fmt.Println("  peers                    - Show connected peer count")
-	fmt.Println("  contacts                 - Show all contacts")
-	fmt.Println("  buckets                  - Show bucket information")
-	fmt.Println("  storage                  - Show stored keys")
-	fmt.Println("  dbstats                  - Show database statistics")
-	fmt.Println("  info                     - Show node information")
-	fmt.Println("  debug                    - Show debug information")
-	fmt.Println("  help                     - Show this help message")
-	fmt.Println("  quit                     - Exit the program")
-	fmt.Println()
-
-	scanner := bufio.NewScanner(os.Stdin)
-
-	for {
-		fmt.Print("kademlia> ")
-		if !scanner.Scan() {
-			break
-		}
-
-		input := strings.TrimSpace(scanner.Text())
-		if input == "" {
-			continue
-		}
-
-		parts := strings.Fields(input)
-		command := strings.ToLower(parts[0])
-
-		switch command {
-		case "start":
-			if node.IsRunning() {
-				fmt.Println("Node is already running")
-			} else {
-				if err := node.Start(); err != nil {
-					fmt.Printf("Failed to start node: %v\n", err)
-				} else {
-					fmt.Println("Node started successfully")
-				}
-			}
-
-		case "stop":
-			if !node.IsRunning() {
-				fmt.Println("Node is not running")
-			} else {
-				node.Stop()
-				fmt.Println("Node stopped")
-			}
-
-		case "store":
-			if !node.IsRunning() {
-				fmt.Println("Node is not running. Use 'start' command first.")
-				continue
-			}
-			if len(parts) < 3 {
-				fmt.Println("Usage: store <key> <value>")
-				continue
-			}
-			key := parts[1]
-			value := strings.Join(parts[2:], " ")
-
-			fmt.Printf("Storing key='%s' value='%s'...\n", key, value)
-			err := node.Store([]byte(key), []byte(value))
-			if err != nil {
-				fmt.Printf("Store failed: %v\n", err)
-			} else {
-				fmt.Printf("Successfully stored: %s\n", key)
-			}
-
-		case "get":
-			if !node.IsRunning() {
-				fmt.Println("Node is not running. Use 'start' command first.")
-				continue
-			}
-			if len(parts) < 2 {
-				fmt.Println("Usage: get <key>")
-				continue
-			}
-			key := parts[1]
-
-			fmt.Printf("Looking up key='%s'...\n", key)
-			value, err := node.FindValue([]byte(key))
-			if err != nil {
-				fmt.Printf("Get failed: %v\n", err)
-			} else {
-				fmt.Printf("Found: %s = %s\n", key, string(value))
-			}
-
-		case "ping":
-			if !node.IsRunning() {
-				fmt.Println("Node is not running. Use 'start' command first.")
-				continue
-			}
-			if len(parts) < 2 {
-				fmt.Println("Usage: ping <peer_id>")
-				continue
-			}
-			peerIDStr := parts[1]
-
-			peerID, err := peer.Decode(peerIDStr)
-			if err != nil {
-				fmt.Printf("Invalid peer ID: %v\n", err)
-				continue
-			}
-
-			// Check if peer is in contacts
-			contacts := node.GetAllContacts()
-			found := false
-			for _, contact := range contacts {
-				if contact.ID == peerID {
-					found = true
-					fmt.Printf("Found peer in contacts: %s\n", contact.ID)
-					break
-				}
-			}
-
-			if !found {
-				fmt.Printf("Peer %s not found in contacts\n", peerID)
-				fmt.Println("Available contacts:")
-				for i, contact := range contacts {
-					fmt.Printf("  %d. %s\n", i+1, contact.ID)
-				}
-				continue
-			}
-
-			// Check libp2p connection
-			conns := host.Network().ConnsToPeer(peerID)
-			fmt.Printf("Active connections to peer: %d\n", len(conns))
-
-			fmt.Printf("Pinging %s...\n", peerID)
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-			err = node.Ping(ctx, peerID)
-			cancel()
-
-			if err != nil {
-				fmt.Printf("Ping failed: %v\n", err)
-			} else {
-				fmt.Printf("Ping successful!\n")
-			}
-
-		case "peers":
-			count := node.GetPeerCount()
-			fmt.Printf("Connected peers: %d\n", count)
-
-		case "contacts":
-			contacts := node.GetAllContacts()
-			if len(contacts) == 0 {
-				fmt.Println("No contacts in routing table")
-			} else {
-				fmt.Printf("Contacts (%d total):\n", len(contacts))
-				for i, contact := range contacts {
-					fmt.Printf("  %d. %s\n", i+1, contact.String())
-				}
-			}
-
-		case "buckets":
-			buckets := node.GetBucketInfo()
-			if len(buckets) == 0 {
-				fmt.Println("No active buckets")
-			} else {
-				fmt.Printf("Active buckets (%d total):\n", len(buckets))
-				for bucket, count := range buckets {
-					fmt.Printf("  Bucket %d: %d contacts\n", bucket, count)
-				}
-			}
-
-		case "storage":
-			count, keys := node.GetStorageInfo()
-			fmt.Printf("Stored keys: %d\n", count)
-			if count > 0 {
-				for i, key := range keys {
-					fmt.Printf("  %d. %s\n", i+1, key)
-				}
-			}
-
-		case "dbstats":
-			stats := node.GetDatabaseStats()
-			fmt.Printf("Database Statistics:\n")
-			for key, value := range stats {
-				fmt.Printf("  %s: %v\n", key, value)
-			}
-
-		case "info":
-			fmt.Printf("Node Information:\n")
-			fmt.Printf("  Running: %v\n", node.IsRunning())
-			fmt.Printf("  Peer ID: %s\n", host.ID())
-			fmt.Printf("  Node ID: %s\n", node.GetNodeID())
-			fmt.Printf("  Contacts: %d\n", node.GetPeerCount())
-
-			count, _ := node.GetStorageInfo()
-			fmt.Printf("  Stored Keys: %d\n", count)
-
-			fmt.Printf("  Addresses:\n")
-			for _, addr := range host.Addrs() {
-				fmt.Printf("    %s/p2p/%s\n", addr, host.ID())
-			}
-
-		case "debug":
-			fmt.Printf("=== Debug Information ===\n")
-			contacts := node.GetAllContacts()
-			fmt.Printf("Total contacts: %d\n", len(contacts))
-
-			for i, contact := range contacts {
-				conns := host.Network().ConnsToPeer(contact.ID)
-				fmt.Printf("%d. Peer: %s\n", i+1, contact.ID)
-				fmt.Printf("   Addresses: %v\n", contact.Addrs)
-				fmt.Printf("   Connections: %d\n", len(conns))
-				fmt.Printf("   Last seen: %v\n", contact.LastSeen)
-				fmt.Println()
-			}
-
-		case "help":
-			fmt.Println("Available commands:")
-			fmt.Println("  start, stop, store <key> <value>, get <key>")
-			fmt.Println("  ping <peer_id>, peers, contacts, buckets")
-			fmt.Println("  storage, dbstats, info, debug, help, quit")
-
-		case "quit", "exit":
-			fmt.Println("Shutting down...")
-			return
-
-		default:
-			// Check if it's a shortcut for common operations
-			if len(parts) == 1 && isNumeric(parts[0]) {
-				// Quick peer count check
-				count := node.GetPeerCount()
-				fmt.Printf("Peers: %d\n", count)
-			} else {
-				fmt.Printf("Unknown command: %s (type 'help' for available commands)\n", command)
-			}
+		if connectedCount == 0 {
+			log.Println("Warning: Failed to connect to any bootstrap peers")
+		} else {
+			fmt.Printf("Connected to %d bootstrap peer(s)\n", connectedCount)
 		}
 	}
-}
 
-func isNumeric(s string) bool {
-	_, err := strconv.Atoi(s)
-	return err == nil
+	// Create integration bridge
+	bridge, err := integration.NewKademliaNetworkBridge(node, *depth, *msgType)
+	if err != nil {
+		log.Fatal("Failed to create integration bridge:", err)
+	}
+
+	fmt.Printf("Integration bridge created successfully\n")
+	fmt.Printf("Host Peer ID for relay layer: %s\n", bridge.GetHostPeerID())
+
+	// Set up network message handler for the bridge
+	handleNetworkMessage := func(msgBytes []byte) error {
+		var networkMsg integration.NetworkMessage
+		if err := json.Unmarshal(msgBytes, &networkMsg); err != nil {
+			return fmt.Errorf("failed to parse network message: %w", err)
+		}
+
+		if err := bridge.ProcessNetworkMessage(networkMsg); err != nil {
+			return fmt.Errorf("failed to process message: %w", err)
+		}
+
+		return nil
+	}
+
+	// Example: Start a goroutine to handle incoming network messages
+	// (In your actual implementation, this would be called by your network layer)
+	go func() {
+		log.Println("Network message handler ready...")
+
+		// Example of how your network layer would send messages
+		time.Sleep(2 * time.Second) // Wait for startup
+
+		// Example embedding search message
+		exampleSearchMsg := integration.NetworkMessage{
+			Type: "embedding_search",
+			Data: json.RawMessage(`{
+                "source": "example_client",
+                "source_id": 1,
+                "embed": [0.1, 0.2, 0.3, 0.4, 0.5],
+                "prev_depth": 0,
+                "query_type": "search",
+                "threshold": 0.8,
+                "results_count": 10,
+                "target_node_id": 123
+            }`),
+			Source:    host.ID(),
+			Timestamp: time.Now().Unix(),
+		}
+
+		msgBytes, _ := json.Marshal(exampleSearchMsg)
+		if err := handleNetworkMessage(msgBytes); err != nil {
+			log.Printf("Example message failed: %v", err)
+		} else {
+			log.Println("Example embedding search message processed")
+		}
+	}()
+
+	// Print status information
+	fmt.Printf("\n=== Node Status ===\n")
+	fmt.Printf("Kademlia Node ID: %s\n", node.GetNodeIDString())
+	fmt.Printf("Depth Level: %d\n", *depth)
+	fmt.Printf("Message Type: %s\n", *msgType)
+	fmt.Printf("Bootstrap Peers: %s\n", *bootstrap)
+	fmt.Printf("Auto-started: %t\n", *autoStart)
+
+	if *depth < 4 {
+		fmt.Printf("Node Type: Intermediate (D%d) - Routes and processes embeddings\n", *depth)
+	} else {
+		fmt.Printf("Node Type: Leaf (D4) - Final storage and retrieval\n")
+	}
+
+	fmt.Printf("\n=== Available Operations ===\n")
+	fmt.Printf("- Embedding Search: Routes through Kademlia to find target nodes\n")
+	fmt.Printf("- Embedding Store: Stores embeddings with centroid updates\n")
+	fmt.Printf("- Kademlia Find: Standard DHT key-value lookups\n")
+	fmt.Printf("- Peer Discovery: Automatic network topology maintenance\n")
+
+	fmt.Printf("\n=== Ready for Network Messages ===\n")
+	fmt.Printf("The node is now ready to receive messages from your network layer.\n")
+	fmt.Printf("Integration bridge will handle routing through Kademlia DHT.\n")
+	fmt.Printf("Host peer ID (%s) should be registered with your relay layer.\n", bridge.GetHostPeerID())
+
+	// Graceful shutdown handling
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+
+	fmt.Printf("\nNode is running... Press Ctrl+C to shutdown\n")
+	fmt.Printf("=====================================\n\n")
+
+	// Wait for shutdown signal
+	<-sigCh
+
+	fmt.Printf("\n=== Shutting Down ===\n")
+
+	// Cleanup
+	if err := node.Stop(); err != nil {
+		log.Printf("Error stopping Kademlia node: %v", err)
+	} else {
+		fmt.Println("Kademlia node stopped")
+	}
+
+	fmt.Println("Host connection closed")
+	fmt.Println("Shutdown complete")
 }
