@@ -33,8 +33,8 @@ func NewWebSocketTransport(addr string) *WebSocketTransport {
 }
 
 // StartReceiver starts a WS server and pushes messages into msgChan
-func (w *WebSocketTransport) StartReceiver(msgChan chan models.Message) error {
-	http.HandleFunc("/ws", func(rw http.ResponseWriter, r *http.Request) {
+func (w *WebSocketTransport) StartPeerReceiver(msgChan chan models.Message) error {
+	http.HandleFunc("/peer", func(rw http.ResponseWriter, r *http.Request) {
 		conn, err := w.upgrader.Upgrade(rw, r, nil)
 		if err != nil {
 			log.Println("[NET] WS upgrade error:", err)
@@ -61,8 +61,8 @@ func (w *WebSocketTransport) StartReceiver(msgChan chan models.Message) error {
 					return
 				default:
 					_, data, err := c.ReadMessage()
-					if err != nil {
-						log.Println("[NET] WS read error:", err)
+					if (err != nil) {
+						log.Println("[NET] Peer WS read error:", err)
 						return
 					}
 					var msg models.Message
@@ -76,6 +76,54 @@ func (w *WebSocketTransport) StartReceiver(msgChan chan models.Message) error {
 		}(conn)
 	})
 
+	log.Println("[NET] WS listening on", w.addr)
+	return http.ListenAndServe(w.addr, nil)
+}
+
+func (w *WebSocketTransport) StartMLReceiver(mlChan chan models.ClusterWrapper) error {
+	http.HandleFunc("/ml", func(rw http.ResponseWriter, r *http.Request) {
+		conn, err := w.upgrader.Upgrade(rw, r, nil) // changes to websockets
+		if err != nil {
+			log.Printf("[NET] WS upgrade error: %v", err.Error())
+			return
+		}
+
+		w.mu.Lock()
+		w.clients[conn] = true
+		w.mu.Unlock()
+
+		log.Println("[NET] New WebSocket client connected")
+
+		go func(c *websocket.Conn) {
+			defer func() {
+				w.mu.Lock()
+				delete(w.clients, c)
+				w.mu.Unlock()
+				c.Close()
+			}()
+
+			for {
+				select {
+				case <-w.closeChan:
+					return
+
+				default:
+					_, data, err := c.ReadMessage() // blocks here until msg sent
+					if err != nil {
+						log.Printf("[NET] ML WS read error: %v", err.Error())
+						return // goes back to top of select
+					}
+
+					var msg models.ClusterWrapper
+					if err := json.Unmarshal(data, &msg); err != nil {
+						log.Printf("[NET] JSON decode error: %v", err.Error())
+						continue
+					}
+					mlChan <- msg
+				}
+			}
+		}(conn)
+	})
 	log.Println("[NET] WS listening on", w.addr)
 	return http.ListenAndServe(w.addr, nil)
 }
