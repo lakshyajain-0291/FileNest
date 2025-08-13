@@ -2,7 +2,7 @@ package kademlia
 
 import (
     "crypto/rand"
-    "crypto/sha256"
+    "crypto/sha1"
     "encoding/hex"
     "fmt"
     "os"
@@ -49,7 +49,7 @@ func (nim *NodeIDManager) loadOrGenerate(peerID peer.ID) error {
     nodeID := make([]byte, KeySize)
     if _, err := rand.Read(nodeID); err != nil {
         // Fallback to deterministic generation
-        hash := sha256.Sum256([]byte(peerID))
+        hash := sha1.Sum([]byte(peerID))
         copy(nodeID, hash[:])
         fmt.Println("Warning: Using deterministic node ID generation")
     }
@@ -78,6 +78,6 @@ func (nim *NodeIDManager) GetNodeIDString() string {
 
 // GenerateNodeID creates a deterministic node ID from peer ID (for temporary use)
 func GenerateNodeID(peerID peer.ID) []byte {
-    hash := sha256.Sum256([]byte(peerID))
+    hash := sha1.Sum([]byte(peerID))
     return hash[:]
 }

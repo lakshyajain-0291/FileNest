@@ -2,7 +2,7 @@ package kademlia
 
 import (
     "context"
-    "crypto/sha256"
+    "crypto/sha1"
     "fmt"
     "strings"
     "sync"
@@ -243,7 +243,7 @@ func (n *Node) FindNode(target []byte) ([]Contact, error) {
 }
 
 func (n *Node) Store(key, value []byte) error {
-    keyHash := sha256.Sum256(key)
+    keyHash := sha1.Sum(key)
     contacts, err := n.FindNode(keyHash[:])
     if err != nil {
         return fmt.Errorf("failed to find nodes for storage: %w", err)
@@ -292,7 +292,7 @@ func (n *Node) Store(key, value []byte) error {
 }
 
 func (n *Node) FindValue(key []byte) ([]byte, error) {
-    keyHash := sha256.Sum256(key)
+    keyHash := sha1.Sum(key)
     shortlist := n.routing.FindClosest(keyHash[:], Alpha)
     
     if len(shortlist) == 0 {

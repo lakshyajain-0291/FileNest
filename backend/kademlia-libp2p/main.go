@@ -24,6 +24,11 @@ func main() {
 	autoStart := flag.Bool("autostart", true, "Automatically start the node")
 	flag.Parse()
 
+	for *port==9090 {
+		fmt.Printf("Port 9090 is busy. Please renter: ")
+		fmt.Scan(port)
+	}
+
 	// Create libp2p host
 	host, err := libp2p.New(
 		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d/ws", *port)),

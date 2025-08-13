@@ -9,7 +9,7 @@ import (
 
 const (
     BucketSize = 20
-    KeySize    = 32
+    KeySize    = 20
     Alpha      = 3
     ProtocolID = "/kademlia/1.0.0"
 )
