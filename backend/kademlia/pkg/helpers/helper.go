@@ -1,7 +1,10 @@
 package helpers
 
 import (
+	"crypto/rand"
 	"errors"
+	"kademlia/pkg/identity"
+	"log"
 	"math/big"
 
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -42,10 +45,18 @@ func BucketIndex(selfID, otherID []byte) int {
         
 			for bitPos := range 8 {
                 if (xorByte & (0x80 >> bitPos)) != 0 {
-                    return (len(selfID)-byteIndex-1)*8 + (7 - bitPos)
+                   return (len(selfID)-byteIndex-1)*8 + (7 - bitPos)
                 }
             }
         }
     }
     return -1 // identical IDs → no bucket
+}
+
+func RandomNodeID() []byte {
+	id := make([]byte, identity.NodeIDBytes)
+	if _, err := rand.Read(id); err != nil {
+		log.Fatalf("failed to generate random NodeID: %v", err)
+	}
+	return id
 }
