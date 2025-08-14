@@ -1,5 +1,4 @@
 package types
-<<<<<<< HEAD
 
 type EmbeddingSearchRequest struct {
 	SourceNodeID []byte    `json:"source_id"`
@@ -18,7 +17,7 @@ type EmbeddingSearchResponse struct {
 	Depth        int       `json:"depth"`
 	SourceNodeID []byte    `json:"source_node_id"`
 	SourcePeerID string    `json:"source_peer_id"`
-	NextNodeID   int       `json:"next_node_id"`
+	NextNodeID   []byte    `json:"next_node_id"`
 	Found        bool      `json:"found"`
 	FileEmbed    []float64 `json:"file_embed"`
 }
@@ -38,8 +37,5 @@ type PingResponse struct {
 
 type PeerInfo struct {
 	NodeID []byte `json:"node_id"`
-	PeerID string `json:"peer_id"`	
+	PeerID string `json:"peer_id"`
 }
-
-=======
->>>>>>> c47043e6cd01d345e6e7b2d32140e737fbcb5771
