@@ -1,4 +1,5 @@
 package types
+<<<<<<< HEAD
 
 type EmbeddingSearchRequest struct {
 	SourceNodeID []byte    `json:"source_id"`
@@ -40,3 +41,5 @@ type PeerInfo struct {
 	PeerID string `json:"peer_id"`	
 }
 
+=======
+>>>>>>> c47043e6cd01d345e6e7b2d32140e737fbcb5771
