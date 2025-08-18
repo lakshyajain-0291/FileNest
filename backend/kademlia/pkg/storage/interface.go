@@ -8,6 +8,5 @@ type EmbeddingResult struct {
 
 type Interface interface {
 	StoreNodeEmbedding(nodeID []byte, embeddingVec []float64) error
-	FindClosestNodes(queryEmbed []float64, limit int) ([]EmbeddingResult, error)
 	FindSimilar(queryEmbed []float64, threshold float64, limit int) ([]EmbeddingResult, error)
 }
