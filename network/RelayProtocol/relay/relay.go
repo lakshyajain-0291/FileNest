@@ -146,7 +146,7 @@ func main() {
 	RelayHost.Network().Notify(&RelayEvents{})
 
 
-	OwnRelayAddrFull = fmt.Sprintf("/dns4/libr-relay.onrender.com/tcp/443/wss/p2p/%s", RelayHost.ID().String())
+	OwnRelayAddrFull = fmt.Sprintf("/dns4/filenest-q5fr.onrender.com/tcp/443/wss/p2p/%s", RelayHost.ID().String())
 
 	customRelayResources := relay.Resources{
 		ReservationTTL:         time.Hour,
