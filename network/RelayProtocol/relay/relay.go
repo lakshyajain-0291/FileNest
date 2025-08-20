@@ -195,8 +195,8 @@ func main() {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("ok"))
 		})
-		log.Printf("[INFO] Health check server listening on :%s\n", port)
-		log.Fatal(http.ListenAndServe(":"+port, nil))
+		log.Printf("[INFO] Health check server listening on :%s\n", "8000")
+		log.Fatal(http.ListenAndServe(":8000", nil))
 	}()
 
 	// Debug goroutine
