@@ -303,7 +303,7 @@ func handleDepthStream(s network.Stream) {
 			peerID2 := req.PeerID
 
 			if peerID2 != peerID.String() {
-				fmt.Println("PEER ID MISMATCH")
+				fmt.Printf("PEER ID MISMATCH, ID1: %v \n ID2: %v\n", peerID, peerID2)
 				return
 			}
 
