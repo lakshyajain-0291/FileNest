@@ -24,8 +24,6 @@ import (
 	"syscall"
 	"time"
 
-	"net/http"
-
 	"github.com/joho/godotenv"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -189,15 +187,6 @@ func main() {
 	// set stream handler
 	RelayHost.SetStreamHandler(DepthProtocol, handleDepthStream)
 
-	// --- FIX: Start HTTP server for Render health checks ---
-	go func() {
-		http.HandleFunc("/check", func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("ok"))
-		})
-		log.Printf("[INFO] Health check endpoint available at /check on :%s\n", port)
-		log.Fatal(http.ListenAndServe(":"+port, nil)) // use same PORT
-	}()
 	// Debug goroutine
 	go func() {
 		for {
@@ -235,34 +224,11 @@ func PingTargets(addresses []string, interval time.Duration) {
 		for {
 			for _, multiAddrStr := range addresses {
 				// Parse the multiaddress string
-				maddr, err := ma.NewMultiaddr(multiAddrStr)
+				_, err := ma.NewMultiaddr(multiAddrStr)
 				if err != nil {
 					log.Printf("[WARN] Could not parse multiaddress %s: %v\n", multiAddrStr, err)
 					continue
 				}
-
-				// Extract the domain name
-				host, err := maddr.ValueForProtocol(ma.P_DNS4)
-				if err != nil {
-					// Fallback for P_DNS6 or other domain protocols if needed
-					host, err = maddr.ValueForProtocol(ma.P_DNS6)
-					if err != nil {
-						log.Printf("[WARN] Could not extract host from multiaddress %s: %v\n", multiAddrStr, err)
-						continue
-					}
-				}
-
-				// Construct the final HTTP URL for the health check
-				pingURL := fmt.Sprintf("https://%s/check", host)
-
-				// Ping the valid URL
-				resp, err := http.Get(pingURL)
-				if err != nil {
-					log.Printf("[WARN] Failed to ping %s: %v\n", pingURL, err)
-					continue
-				}
-				resp.Body.Close()
-				log.Printf("[INFO] Pinged %s — Status: %s\n", pingURL, resp.Status)
 			}
 			time.Sleep(interval)
 		}
