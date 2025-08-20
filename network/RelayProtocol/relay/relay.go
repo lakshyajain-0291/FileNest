@@ -107,12 +107,16 @@ func (re *RelayEvents) Disconnected(net network.Network, conn network.Conn) {
 func main() {
 	fmt.Println("STARTING RELAY CODE")
 	godotenv.Load()
+
 	mongo_uri := os.Getenv("MONGO_URI")
-	fmt.Println(mongo_uri)
+	if mongo_uri == "" {
+		log.Fatal("[FATAL] MONGO_URI not set in environment")
+	}
+	fmt.Println("[DEBUG] Using Mongo URI:", mongo_uri)
 
 	err := SetupMongo(mongo_uri)
-	if err!=nil{
-		fmt.Printf("[DEBUG]Error connecting to MongoDB: %v", err.Error())
+	if err != nil {
+		fmt.Printf("[DEBUG] Error connecting to MongoDB: %v\n", err.Error())
 		return
 	}
 
@@ -124,41 +128,50 @@ func main() {
 
 	privKey, _, err := crypto.GenerateEd25519Key(rand.Reader)
 	if err != nil {
-		// handle error
 		panic(err)
 	}
-	fmt.Println("[DEBUG] Creating relay host...")
 
+	// --- FIX: Use $PORT instead of hardcoded 443 ---
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080" // default for local runs
+	}
+
+	fmt.Println("[DEBUG] Creating relay host on port", port)
 	RelayHost, err = libp2p.New(
 		libp2p.Identity(privKey),
-
-		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/443/ws"), // change to 443 for server
+		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/tcp/%s/ws", port)),
 		libp2p.Security(libp2ptls.ID, libp2ptls.New),
 		libp2p.ConnectionManager(connMgr),
 		libp2p.EnableNATService(),
 		libp2p.EnableRelayService(),
 		libp2p.Transport(tcp.NewTCPTransport),
-		libp2p.Transport(websocket.New), 
+		libp2p.Transport(websocket.New),
 	)
 	if err != nil {
 		log.Fatalf("[ERROR] Failed to create relay host: %v", err)
 	}
 	RelayHost.Network().Notify(&RelayEvents{})
 
-
-	OwnRelayAddrFull = fmt.Sprintf("/dns4/filenest-q5fr.onrender.com/tcp/443/wss/p2p/%s", RelayHost.ID().String())
+	// --- FIX: Use Render’s provided hostname instead of hardcoding ---
+	hostName := os.Getenv("RENDER_EXTERNAL_HOSTNAME")
+	if hostName == "" {
+		hostName = "localhost" // fallback for local testing
+	}
+	OwnRelayAddrFull = fmt.Sprintf("/dns4/%s/tcp/%s/wss/p2p/%s",
+		hostName, port, RelayHost.ID().String(),
+	)
 
 	customRelayResources := relay.Resources{
 		ReservationTTL:         time.Hour,
 		MaxReservations:        1000,
 		MaxCircuits:            64,
-		BufferSize:             64*1024,
+		BufferSize:             64 * 1024,
 		MaxReservationsPerPeer: 10,
-		MaxReservationsPerIP:   400, 
+		MaxReservationsPerIP:   400,
 		MaxReservationsPerASN:  64,
 	}
 
-	// Enable circuit relay service
 	fmt.Println("[DEBUG] Enabling circuit relay service...")
 	_, err = relay.New(RelayHost, relay.WithResources(customRelayResources))
 	if err != nil {
@@ -168,16 +181,28 @@ func main() {
 	fmt.Printf("[INFO] Relay started!\n")
 	fmt.Printf("[INFO] Peer ID: %s\n", RelayHost.ID())
 
-	// Print all addresses
 	for _, addr := range RelayHost.Addrs() {
 		fmt.Printf("[INFO] Relay Address: %s/p2p/%s\n", addr, RelayHost.ID())
 	}
+	fmt.Printf("[INFO] Own Relay Addr Full: %s\n", OwnRelayAddrFull)
 
-	//set stream handler for relay here
-	RelayHost.SetStreamHandler("/depth/1.0.0", handleDepthStream)
+	// set stream handler
+	RelayHost.SetStreamHandler(DepthProtocol, handleDepthStream)
+
+	// --- FIX: Start HTTP server for Render health checks ---
+	go func() {
+		http.HandleFunc("/check", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("ok"))
+		})
+		log.Printf("[INFO] Health check server listening on :%s\n", port)
+		log.Fatal(http.ListenAndServe(":"+port, nil))
+	}()
+
+	// Debug goroutine
 	go func() {
 		for {
-			fmt.Println(ConnectedPeers)
+			fmt.Println("[DEBUG] Connected peers:", ConnectedPeers)
 			time.Sleep(5 * time.Second)
 		}
 	}()
@@ -185,13 +210,17 @@ func main() {
 	addr, _ := GetRelayAddrFromMongo()
 	go PingTargets(addr, 5*time.Minute)
 
+	// wait for interrupt
 	fmt.Println("[DEBUG] Waiting for interrupt signal...")
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	<-c
 
 	fmt.Println("[INFO] Shutting down relay...")
+	DisconnectMongo()
 }
+
+
 func remove(Lists *[]string, val string) {
     for i, item := range *Lists {
         if item == val {
