@@ -248,7 +248,8 @@ func (dp *DepthPeer) Start(ctx context.Context) error {
 	reqSent.Type = "register"
 	reqSent.PeerID = dp.Host.ID().String() // now sending the the peerID in the req to register in the relay
 	//reqSent.PubIP = OwnPubIP // have to use a stun server to get public ip first and then send register command
-	fmt.Println(reqSent.PeerID)
+	fmt.Printf("reqSent PID: %v\n",reqSent.PeerID)
+
 	stream, err := dp.Host.NewStream(context.Background(), relayInfo.ID, DepthPeerProtocol)
 	if err != nil {
 		fmt.Println("[DEBUG]Error Opening stream to relay")
@@ -259,8 +260,12 @@ func (dp *DepthPeer) Start(ctx context.Context) error {
 	if err != nil {
 		fmt.Println("[DEBUG]Error marshalling the req to be sent")
 	}
-	stream.Write([]byte(reqJson))
 
+	n, err := stream.Write([]byte(reqJson))
+	log.Printf("Written %v bytes to stream", n)
+	if(err != nil){
+		log.Printf("error during writing to stream: %v", err.Error())
+	}
 	time.Sleep(1 * time.Second)
 
 	stream.Close()

@@ -9,7 +9,7 @@ import (
 )
 
 func main(){
-	relayAddrs := []string{"/dns4/filenest-q5fr.onrender.com/tcp/443/wss/p2p/12D3KooWBiSerxkUg4HYLXNUGgn5XQyCGem3T63E762EmiFd47kq"}
+	relayAddrs := []string{"/dns4/filenest-q5fr.onrender.com/tcp/443/wss/p2p/12D3KooWAjVK3gBkC2UrCbwL4PH26PPU6TDRdbsSGx9Luvt3uFTx"}
 	p,err := peer.NewDepthPeer(relayAddrs)
 	if(err != nil){
 		log.Printf("Error on NewDepthPeer: %v", err.Error())
@@ -22,4 +22,5 @@ func main(){
 		log.Printf("PIDs connected addrs are- %+v\n", pid)
 	}
 
+	select{}
 }
