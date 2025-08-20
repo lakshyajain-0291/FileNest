@@ -140,7 +140,7 @@ func main() {
 	fmt.Println("[DEBUG] Creating relay host on port", port)
 	RelayHost, err = libp2p.New(
 		libp2p.Identity(privKey),
-		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/tcp/%s/wss", port)),
+		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/tcp/%s/ws", port)),
 		libp2p.Security(libp2ptls.ID, libp2ptls.New),
 		libp2p.ConnectionManager(connMgr),
 		libp2p.EnableNATService(),
