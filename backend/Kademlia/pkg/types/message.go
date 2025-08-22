@@ -24,6 +24,7 @@ type EmbeddingSearchResponse struct {
 	FileEmbed    []float64 `json:"file_embed"`
 }
 
+//to be modified with info about receiver
 type PingRequest struct {
 	SenderNodeID []byte `json:"sender_id"`
 	SenderPeerID string `json:"sender_addr"`
@@ -44,6 +45,7 @@ type PeerInfo struct {
 
 // Add these to your existing messages.go file
 
+//sent to kademlia node
 type FindNodeRequest struct {
     SenderNodeID []byte `json:"sender_node_id"`
     SenderPeerID string `json:"sender_peer_id"`
@@ -51,6 +53,7 @@ type FindNodeRequest struct {
     Timestamp    int64  `json:"timestamp"`
 }
 
+//sent back to user for relaying
 type FindNodeResponse struct {
     SenderNodeID []byte     `json:"sender_node_id"`
     SenderPeerID string     `json:"sender_peer_id"`
