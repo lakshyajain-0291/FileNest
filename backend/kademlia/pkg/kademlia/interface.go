@@ -17,4 +17,5 @@ type Kademlia interface {
 type NetworkInterface interface {
     SendPing(targetNodeID []byte, req *types.PingRequest) (*types.PingResponse, error)
     SendEmbeddingSearch(targetNodeID []byte, req *types.EmbeddingSearchRequest) (*types.EmbeddingSearchResponse, error)
+    SendFindNode(targetNodeID []byte, req *types.FindNodeRequest) (*types.FindNodeResponse, error)
 }
