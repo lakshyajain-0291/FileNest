@@ -158,7 +158,7 @@ func main() {
 		hostName = "localhost" // fallback for local testing
 	}
 	OwnRelayAddrFull = fmt.Sprintf("/dns4/%s/tcp/%s/wss/p2p/%s",
-		hostName, port, RelayHost.ID().String(),
+		hostName, "443", RelayHost.ID().String(),
 	)
 
 	err = helpers.UpsertRelayAddr(MongoClient, OwnRelayAddrFull)
