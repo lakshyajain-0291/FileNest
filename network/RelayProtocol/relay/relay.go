@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"io"
+	"relay/helpers"
 
 	//"io"
 	"math/big"
@@ -39,9 +40,7 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/transport/websocket"
 	ma "github.com/multiformats/go-multiaddr"
 
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type RelayDist struct {
@@ -104,7 +103,7 @@ func (re *RelayEvents) Disconnected(net network.Network, conn network.Conn) {
 
 func main() {
 	fmt.Println("STARTING RELAY CODE")
-	godotenv.Load()
+	godotenv.Load(".env")
 
 	mongo_uri := os.Getenv("MONGO_URI")
 	if mongo_uri == "" {
@@ -112,7 +111,7 @@ func main() {
 	}
 	fmt.Println("[DEBUG] Using Mongo URI:", mongo_uri)
 
-	err := SetupMongo(mongo_uri)
+	err := helpers.SetupMongo(mongo_uri)
 	if err != nil {
 		fmt.Printf("[DEBUG] Error connecting to MongoDB: %v\n", err.Error())
 		return
@@ -195,7 +194,7 @@ func main() {
 		}
 	}()
 
-	addr, _ := GetRelayAddrFromMongo()
+	addr, _ := helpers.GetRelayAddrFromMongo()
 	go PingTargets(addr, 5*time.Minute)
 
 	// wait for interrupt
@@ -205,7 +204,7 @@ func main() {
 	<-c
 
 	fmt.Println("[INFO] Shutting down relay...")
-	DisconnectMongo()
+	helpers.DisconnectMongo()
 }
 
 
@@ -303,6 +302,7 @@ func handleDepthStream(s network.Stream) {
 					s.Write([]byte("[DEBUG]Target Peer not in network"))
 					return
 				}
+				
 				var forwardReq reqFormat
 				forwardReq.Body = req.Body
 				forwardReq.ReqParams = req.ReqParams
@@ -498,7 +498,7 @@ func handleDepthStream(s network.Stream) {
 }
 
 func GetRelayAddr(peerID string) string {
-	RelayMultiAddrList, err := GetRelayAddrFromMongo()
+	RelayMultiAddrList, err := helpers.GetRelayAddrFromMongo()
 
 	if err != nil {
 		fmt.Println("[DEBUG]Error getting from mongo error : ",err)
@@ -581,60 +581,3 @@ func AddRelayAddrToCSV(myAddr string, path string) error {
 	return err
 }
 
-func SetupMongo(uri string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(uri))
-	if err != nil {
-		return fmt.Errorf("failed to connect to MongoDB: %w", err)
-	}
-
-	if err := client.Ping(ctx, nil); err != nil {
-		return fmt.Errorf("failed to ping MongoDB: %w", err)
-	}
-
-	MongoClient = client
-	log.Println("✅ MongoDB connected successfully")
-	return nil
-}
-
-
-
-func DisconnectMongo() {
-	if MongoClient != nil {
-		if err := MongoClient.Disconnect(context.Background()); err != nil {
-			log.Println("⚠ Error disconnecting MongoDB:", err)
-		} else {
-			log.Println("🛑 MongoDB disconnected")
-		}
-	}
-}
-
-
-func GetRelayAddrFromMongo() ([]string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	collection := MongoClient.Database("Addrs").Collection("relays")
-	cursor, err := collection.Find(ctx, bson.M{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch relay addresses: %w", err)
-	}
-	defer cursor.Close(ctx)
-
-	var relayList []string
-	for cursor.Next(ctx) {
-		var doc struct {
-			Address string `bson:"address"`
-		}
-		if err := cursor.Decode(&doc); err != nil {
-			return nil, fmt.Errorf("failed to decode relay document: %w", err)
-		}
-		if strings.HasPrefix(doc.Address, "/") {
-			relayList = append(relayList, strings.TrimSpace(doc.Address))
-		}
-	}
-
-	return relayList,nil
-}

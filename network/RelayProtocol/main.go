@@ -5,22 +5,38 @@ package main
 import (
 	"context"
 	"log"
+	"relay/helpers"
 	"relay/peer"
 )
 
+
 func main(){
-	relayAddrs := []string{"/dns4/filenest-q5fr.onrender.com/tcp/443/wss/p2p/12D3KooWAjVK3gBkC2UrCbwL4PH26PPU6TDRdbsSGx9Luvt3uFTx"}
+	// pid := "12D3KooWPQir1nHsQn7QnPEvsDKVGxRPF1EFpUwMYagkh8kcZiKG"
+	relayAddrs, err := helpers.GetRelayAddrFromMongo()
+	if(err != nil){
+		log.Printf("Error during get relay addrs: %v", err.Error())
+	}
+
 	p,err := peer.NewDepthPeer(relayAddrs)
 	if(err != nil){
 		log.Printf("Error on NewDepthPeer: %v", err.Error())
 	}
 	ctx := context.Background()
-	p.Start(ctx)
+	peer.Start(p,ctx)
 
-	pids := p.GetConnectedPeers()
-	for pid := range pids{
-		log.Printf("PIDs connected addrs are- %+v\n", pid)
-	}
+	// req := reqFormat{
+	// 	Type: "SendMsg",
+	// 	PeerID: pid,
+	// }
+	// reqJson, _ := json.Marshal(req);
+	// resp, err := p.Send(ctx, pid, reqJson, nil)
+	// if(err != nil){
+	// 	log.Println(err.Error())
+	// }
+
+	// var respDec any;
+	// json.Unmarshal(resp, &respDec)
+	// log.Printf("Response: %+v", respDec)
 
 	select{}
 }

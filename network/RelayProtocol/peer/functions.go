@@ -4,6 +4,7 @@ import (
 	// ...
 	"bytes"
 	"context"
+	"relay/models"
 
 	//"encoding/base64"
 	"encoding/json"
@@ -14,7 +15,7 @@ import (
 	"time"
 )
 
-var Peer *DepthPeer
+var Peer *models.DepthPeer
 // var globalLocalNode *models.Node
 // var GlobalRT *routing.RoutingTable
 
@@ -34,7 +35,7 @@ func StartNode(relayMultiAddrList []string) {
 
 	ctx := context.Background()
 
-	if err := Peer.Start(ctx); err != nil {
+	if err := Start(Peer,ctx); err != nil {
 		log.Fatal(err)
 	}
 
@@ -63,7 +64,7 @@ func GET(targetPeerID string ,route string) ([]byte, error) { //"/ts=123&&id=123
 	_ = jsonReq
 	ctx := context.Background()
 
-	GetResp, err := Peer.Send(ctx,targetPeerID, jsonReq, nil)
+	GetResp, err := Send(Peer, ctx,targetPeerID, jsonReq, nil)
 	if err != nil {
 		fmt.Println("Error Sending trial get message")
 	}
@@ -94,7 +95,7 @@ func POST(targetPeerID string, route string, body []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	GetResp, err := Peer.Send(timeoutCtx, targetPeerID , jsonReq, body)
+	GetResp, err := Send(Peer, timeoutCtx, targetPeerID , jsonReq, body)
 
 	if err != nil {
 		fmt.Println("Error Sending trial get message")
