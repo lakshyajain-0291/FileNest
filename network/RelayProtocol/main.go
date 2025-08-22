@@ -16,6 +16,7 @@ func main(){
 	if(err != nil){
 		log.Printf("Error during get relay addrs: %v", err.Error())
 	}
+	log.Printf("relayAddrs: %+v", relayAddrs)
 
 	p,err := peer.NewDepthPeer(relayAddrs)
 	if(err != nil){

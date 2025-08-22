@@ -14,10 +14,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-var (
-	MongoClient *mongo.Client
-)
-
 func SetupMongo(uri string) (*mongo.Client, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -31,19 +27,8 @@ func SetupMongo(uri string) (*mongo.Client, error) {
 		return nil, fmt.Errorf("failed to ping MongoDB: %w", err)
 	}
 
-	MongoClient = client
 	log.Println("✅ MongoDB connected successfully")
 	return client, nil
-}
-
-func DisconnectMongo() {
-	if MongoClient != nil {
-		if err := MongoClient.Disconnect(context.Background()); err != nil {
-			log.Println("⚠ Error disconnecting MongoDB:", err)
-		} else {
-			log.Println("🛑 MongoDB disconnected")
-		}
-	}
 }
 
 func GetRelayAddrFromMongo() ([]string, error) {
@@ -51,20 +36,13 @@ func GetRelayAddrFromMongo() ([]string, error) {
 	uri := os.Getenv("MONGO_URI")
 	MongoClient, err := SetupMongo(uri)
 	if(err != nil){
-
+		return nil,err
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	db := MongoClient.Database("Addrs")
-	collection := db.Collection("relays")
-	
-	_, err = collection.InsertOne(ctx, bson.M{"address": "bootstrap"})
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Println(collection.Name())
+	collection := MongoClient.Database("Addrs").Collection("relays")
 	cursor, err := collection.Find(ctx, bson.M{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch relay addresses: %w", err)
@@ -85,4 +63,22 @@ func GetRelayAddrFromMongo() ([]string, error) {
 	}
 
 	return relayList,nil
+}
+
+func UpsertRelayAddr(client *mongo.Client, addr string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	collection := client.Database("Addrs").Collection("relays")
+
+	filter := bson.M{"address": addr}
+	update := bson.M{"$set": bson.M{"address": addr, "updatedAt": time.Now()}}
+
+	opts := options.Update().SetUpsert(true)
+
+	_, err := collection.UpdateOne(ctx, filter, update, opts)
+	if err != nil {
+		return fmt.Errorf("failed to upsert relay address: %w", err)
+	}
+	return nil
 }

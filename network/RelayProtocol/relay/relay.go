@@ -103,7 +103,7 @@ func (re *RelayEvents) Disconnected(net network.Network, conn network.Conn) {
 
 func main() {
 	var err error
-	
+
 	fmt.Println("STARTING RELAY CODE")
 	godotenv.Load(".env")
 
@@ -161,6 +161,11 @@ func main() {
 		hostName, port, RelayHost.ID().String(),
 	)
 
+	err = helpers.UpsertRelayAddr(MongoClient, OwnRelayAddrFull)
+	if(err != nil){
+		log.Printf("Error during upsertion: %v", err.Error())
+	}
+
 	customRelayResources := relay.Resources{
 		ReservationTTL:         time.Hour,
 		MaxReservations:        1000,
@@ -188,7 +193,7 @@ func main() {
 	// set stream handler
 	RelayHost.SetStreamHandler(DepthProtocol, handleDepthStream)
 
-	// Debug goroutine
+	// Lists connected peers every 5 sec
 	go func() {
 		for {
 			fmt.Println("[DEBUG] Connected peers:", ConnectedPeers)
@@ -206,7 +211,6 @@ func main() {
 	<-c
 
 	fmt.Println("[INFO] Shutting down relay...")
-	helpers.DisconnectMongo()
 }
 
 
@@ -261,7 +265,7 @@ func handleDepthStream(s network.Stream) {
 			}
 			return // Exit the loop on any error or clean disconnect.
 		}
-		fmt.Printf("req by user is : %+v \n", req)
+		fmt.Printf("Req by user is: %+v \n", req)
 
 		if req.Type == "register" {
 			peerID := s.Conn().RemotePeer()
