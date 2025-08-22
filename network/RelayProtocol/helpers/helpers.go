@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"time"
 
+	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -16,22 +18,22 @@ var (
 	MongoClient *mongo.Client
 )
 
-func SetupMongo(uri string) error {
+func SetupMongo(uri string) (*mongo.Client, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	client, err := mongo.Connect(ctx, options.Client().ApplyURI(uri))
 	if err != nil {
-		return fmt.Errorf("failed to connect to MongoDB: %w", err)
+		return nil, fmt.Errorf("failed to connect to MongoDB: %w", err)
 	}
 
 	if err := client.Ping(ctx, nil); err != nil {
-		return fmt.Errorf("failed to ping MongoDB: %w", err)
+		return nil, fmt.Errorf("failed to ping MongoDB: %w", err)
 	}
 
 	MongoClient = client
 	log.Println("✅ MongoDB connected successfully")
-	return nil
+	return client, nil
 }
 
 func DisconnectMongo() {
@@ -45,13 +47,20 @@ func DisconnectMongo() {
 }
 
 func GetRelayAddrFromMongo() ([]string, error) {
+	godotenv.Load(".env")
+	uri := os.Getenv("MONGO_URI")
+	MongoClient, err := SetupMongo(uri)
+	if(err != nil){
+
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	db := MongoClient.Database("Addrs")
 	collection := db.Collection("relays")
 	
-	_, err := collection.InsertOne(ctx, bson.M{"address": "bootstrap"})
+	_, err = collection.InsertOne(ctx, bson.M{"address": "bootstrap"})
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -102,6 +102,8 @@ func (re *RelayEvents) Disconnected(net network.Network, conn network.Conn) {
 }
 
 func main() {
+	var err error
+	
 	fmt.Println("STARTING RELAY CODE")
 	godotenv.Load(".env")
 
@@ -111,7 +113,7 @@ func main() {
 	}
 	fmt.Println("[DEBUG] Using Mongo URI:", mongo_uri)
 
-	err := helpers.SetupMongo(mongo_uri)
+	MongoClient, err = helpers.SetupMongo(mongo_uri)
 	if err != nil {
 		fmt.Printf("[DEBUG] Error connecting to MongoDB: %v\n", err.Error())
 		return
