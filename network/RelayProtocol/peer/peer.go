@@ -283,7 +283,7 @@ func refreshReservations(dp *models.DepthPeer, ctx context.Context, relayInfo pe
 	}
 }
 
-func handleDepthStream(dp*models.DepthPeer, s network.Stream) {
+func handleDepthStream(dp* models.DepthPeer, s network.Stream) {
 	log.Println("[DEBUG] Incoming Depth stream from", s.Conn().RemotePeer())
 	defer s.Close()
 
@@ -297,12 +297,12 @@ func handleDepthStream(dp*models.DepthPeer, s network.Stream) {
 		line = bytes.TrimRight(line, "\x00")
 
 		var reqStruct models.ReqFormat
-		err = json.Unmarshal(line, &reqStruct)
 		log.Println("[DEBUG] Raw input:", string(line))
 		if err != nil {
 			log.Println("[DEBUG]Error unmarshalling to reqStruct")
 		}
-
+		json.Unmarshal(line, &reqStruct)
+		
 		var reqData map[string]any
 		reqStruct.ReqParams = bytes.TrimRight(reqStruct.ReqParams, "\x00")
 		if err := json.Unmarshal(reqStruct.ReqParams, &reqData); err != nil {
@@ -311,6 +311,7 @@ func handleDepthStream(dp*models.DepthPeer, s network.Stream) {
 		}
 		log.Printf("[DEBUG]ReqData is : %+v \n", reqData)
 
+		//GET method recv. from relay to peer
 		if reqData["Method"] == "GET" {
 			resp := ServeGetReq(reqStruct.ReqParams)
 			resp = bytes.TrimRight(resp, "\x00")

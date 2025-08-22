@@ -267,6 +267,7 @@ func handleDepthStream(s network.Stream) {
 		}
 		fmt.Printf("Req by user is: %+v \n", req)
 
+		//peer to relay register request
 		if req.Type == "register" {
 			peerID := s.Conn().RemotePeer()
 			peerID2 := req.PeerID
@@ -284,6 +285,7 @@ func handleDepthStream(s network.Stream) {
 			mu.Unlock()
 		}
 
+		//peer to relay sendMsg request
 		if req.Type == "SendMsg" {
 			mu.RLock()
 			var targetPeerID string
@@ -309,6 +311,7 @@ func handleDepthStream(s network.Stream) {
 					return
 				}
 				
+				//construct and send forward request to peer
 				var forwardReq reqFormat
 				forwardReq.Body = req.Body
 				forwardReq.ReqParams = req.ReqParams
@@ -333,6 +336,7 @@ func handleDepthStream(s network.Stream) {
 					return
 				}
 
+				// OPENS stream to target peer
 				forwardStream, err := RelayHost.NewStream(context.Background(), TargetRelayInfo.ID, DepthProtocol)
 				if err != nil {
 					fmt.Println("[DEBUG] Failed to open stream to target relay:", err)
@@ -340,6 +344,7 @@ func handleDepthStream(s network.Stream) {
 				}
 				defer forwardStream.Close()
 
+				// encodes fwdReq to fwdStream
 				encoder := json.NewEncoder(forwardStream)
 				if err := encoder.Encode(forwardReq); err != nil {
 					fmt.Println("[DEBUG] Failed to write forward request to stream:", err)
@@ -354,7 +359,7 @@ func handleDepthStream(s network.Stream) {
 					return
 				}
 
-				fmt.Printf("[Debug]Frowarded Resp from relay : %s : %s \n", TargetRelayInfo.ID.String(), string(respBody))
+				log.Printf("[Debug]Forwarded Resp from relay : %s : %s \n", TargetRelayInfo.ID.String(), string(respBody))
 
 				_, err = s.Write(respBody)
 				if err != nil {

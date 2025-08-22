@@ -105,7 +105,7 @@ func POST(targetPeerID string, route string, body []byte) ([]byte, error) {
 }
 
 func ServeGetReq(paramsBytes []byte) []byte {
-	var params map[string]interface{}
+	var params map[string]any
 	err := json.Unmarshal(paramsBytes, &params)
 	if err != nil {
 		fmt.Println(err)
@@ -121,10 +121,19 @@ func ServeGetReq(paramsBytes []byte) []byte {
 	//	return network.FindValueHandler(keyStr, globalLocalNode, GlobalRT)
 //uncomment this acc to use
 	}
-
+	
 	var resp []byte
 	return resp
 
+}
+
+func ServePostReq(paramsBytes []byte) []byte {
+	var params map[string]any
+	err := json.Unmarshal(paramsBytes, &params)
+	if err != nil {
+		fmt.Println(err)
+	}
+	return nil
 }
 
 // func ServePostReq(addr []byte, paramsBytes []byte, bodyBytes []byte) []byte {
