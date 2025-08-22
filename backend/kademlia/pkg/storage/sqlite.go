@@ -29,52 +29,6 @@ func NewSQLiteStorage(dbPath string) (*SQLiteStorage, error) {
 	}, nil
 }
 
-func (s *SQLiteStorage) StoreNodeEmbedding(nodeID []byte, embeddingVec []float64) error {
-	nodeEmbedding := NodeEmbedding{
-		NodeID:    nodeID,
-		Embedding: EmbeddingVector(embeddingVec),
-	}
-
-	// Use GORM's Upsert (Create or Update)
-	result := s.db.Where("node_id = ?", nodeID).Assign(nodeEmbedding).FirstOrCreate(&nodeEmbedding)
-	return result.Error
-}
-
-func (s *SQLiteStorage) FindClosestNodes(queryEmbed []float64, limit int) ([]EmbeddingResult, error) {
-	var nodeEmbeddings []NodeEmbedding
-
-	// Get all embeddings from database
-	result := s.db.Find(&nodeEmbeddings)
-	if result.Error != nil {
-		return nil, result.Error
-	}
-
-	var results []EmbeddingResult
-
-	// Calculate similarity for each stored embedding
-	for _, ne := range nodeEmbeddings {
-		similarity := embedding.CosineSimilarity(queryEmbed, []float64(ne.Embedding))
-
-		results = append(results, EmbeddingResult{
-			Key:     ne.NodeID,
-			Embedding:  []float64(ne.Embedding),
-			Similarity: similarity,
-		})
-	}
-
-	// Sort by similarity (highest first)
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].Similarity > results[j].Similarity
-	})
-
-	// Limit results
-	if len(results) > limit {
-		results = results[:limit]
-	}
-
-	return results, nil
-}
-
 func (s *SQLiteStorage) FindSimilar(queryEmbed []float64, threshold float64, limit int) ([]EmbeddingResult, error) {
     var nodeEmbeddings []NodeEmbedding
     
@@ -119,4 +73,15 @@ func (s *SQLiteStorage) Close() error {
 		return err
 	}
 	return sqlDB.Close()
+}
+
+func (s *SQLiteStorage) StoreNodeEmbedding(nodeID []byte, embeddingVec []float64) error {
+    nodeEmbedding := NodeEmbedding{
+        NodeID:    nodeID,
+        Embedding: EmbeddingVector(embeddingVec),
+    }
+    
+    // Use GORM's Upsert (Create or Update)
+    result := s.db.Where("node_id = ?", nodeID).Assign(nodeEmbedding).FirstOrCreate(&nodeEmbedding)
+    return result.Error
 }
