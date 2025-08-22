@@ -17,7 +17,7 @@ import (
 
 	//"io"
 
-	"relay/models"
+	"network/pkg/relay/models"
 	"strings"
 	"time"
 
@@ -180,9 +180,7 @@ func NewDepthPeer(relayMultiAddrList []string) (*models.DepthPeer, error) {
 	log.Println(h.ID().String())
 
 	log.Println("[DEBUG] Setting stream handler for Depth protocol")
-	h.SetStreamHandler(DepthPeerProtocol,func (s network.Stream) {
-		handleDepthStream(dp, s)
-	})
+	h.SetStreamHandler(DepthPeerProtocol,handleDepthStream)
 
 	return dp, nil
 }
@@ -283,7 +281,7 @@ func refreshReservations(dp *models.DepthPeer, ctx context.Context, relayInfo pe
 	}
 }
 
-func handleDepthStream(dp* models.DepthPeer, s network.Stream) {
+func handleDepthStream(s network.Stream) {
 	log.Println("[DEBUG] Incoming Depth stream from", s.Conn().RemotePeer())
 	defer s.Close()
 

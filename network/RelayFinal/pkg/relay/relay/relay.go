@@ -4,7 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"io"
-	"relay/helpers"
+	"network/pkg/relay/helpers"
 
 	//"io"
 	"math/big"

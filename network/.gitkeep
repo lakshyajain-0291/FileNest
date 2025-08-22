@@ -1,5 +1,2 @@
 # P2P networking code for FileNest
 # This directory will contain distributed networking and protocol implementations
-general-peer/
-cmd/
-pkg/

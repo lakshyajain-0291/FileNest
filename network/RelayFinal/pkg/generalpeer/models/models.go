@@ -1,11 +1,5 @@
 package models
 
-type Peer struct {
-	ID   int
-	IP   string
-	Port int
-}
-
 type Message struct {
 	Type          string       `json:"type"`
 	QueryEmbed    []float64    `json:"query_embed"`

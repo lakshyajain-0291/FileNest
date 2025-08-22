@@ -1,4 +1,4 @@
-module relay
+module network
 
 go 1.24.3
 

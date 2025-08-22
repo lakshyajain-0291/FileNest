@@ -1,16 +1,13 @@
 package main
 
-// relay addr: /ip4/10.210.211.204/tcp/10000/ws/p2p/12D3KooWBiSerxkUg4HYLXNUGgn5XQyCGem3T63E762EmiFd47kq
-// self addr: /dns4/filenest-q5fr.onrender.com/tcp/10000/wss/p2p/12D3KooWBiSerxkUg4HYLXNUGgn5XQyCGem3T63E762EmiFd47kq
 import (
 	"context"
 	"encoding/json"
 	"log"
-	"relay/helpers"
-	"relay/models"
-	"relay/peer"
+	"network/pkg/relay/helpers"
+	"network/pkg/relays/models"
+	"network/pkg/relays/peer"
 )
-
 
 func main(){
 	relayAddrs, err := helpers.GetRelayAddrFromMongo()
@@ -45,4 +42,5 @@ func main(){
 	log.Printf("Response: %+v", respDec)
 
 	select{}
+}
 }

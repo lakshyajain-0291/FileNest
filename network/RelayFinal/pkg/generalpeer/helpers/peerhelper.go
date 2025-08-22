@@ -2,11 +2,12 @@ package helpers
 
 import (
 	"encoding/json"
-	"general-peer/pkg/models"
 	"log"
+	"network/pkg/generalpeer/models"
 
 	"github.com/libp2p/go-libp2p/core/network"
 )
+
 func Decoder(s network.Stream, msgChan chan models.Message){
     var msg models.Message
     if err := json.NewDecoder(s).Decode(&msg); err != nil {
