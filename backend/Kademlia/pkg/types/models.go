@@ -1,10 +1,15 @@
 package types
 
 import (
-    "database/sql/driver"
-    "encoding/json"
-    "fmt"
+	"database/sql/driver"
+	"encoding/json"
+	"fmt"
 )
+
+type NodeEmbedding struct {
+    NodeID    []byte          `gorm:"column:node_id;primaryKey" json:"node_id"`
+    Embedding EmbeddingVector `gorm:"column:embedding;type:text;not null" json:"embedding"`
+}
 
 // Custom type for storing float64 slice as JSON in database
 type EmbeddingVector []float64
@@ -15,7 +20,7 @@ func (e EmbeddingVector) Value() (driver.Value, error) {
 }
 
 // Implement sql.Scanner interface for reading from database
-func (e *EmbeddingVector) Scan(value interface{}) error {
+func (e *EmbeddingVector) Scan(value any) error {
     if value == nil {
         *e = nil
         return nil
@@ -27,12 +32,6 @@ func (e *EmbeddingVector) Scan(value interface{}) error {
     }
     
     return json.Unmarshal(bytes, e)
-}
-
-// Database model
-type NodeEmbedding struct {
-    NodeID    []byte          `gorm:"column:node_id;primaryKey" json:"node_id"`
-    Embedding EmbeddingVector `gorm:"column:embedding;type:text;not null" json:"embedding"`
 }
 
 // Table name
