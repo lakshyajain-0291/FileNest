@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rand"
 	"errors"
 	"fmt"
@@ -9,24 +10,66 @@ import (
 	"kademlia/pkg/kademlia"
 	"kademlia/pkg/types"
 	"log"
+	"math"
 	"math/big"
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
-// This file contains the network integration logic for the Kademlia DHT implementation.
+// Local wrapper type to extend helpers.EmbeddingProcessor
+// This solves the "cannot define new methods on non-local type" error
+type LocalEmbeddingProcessor struct {
+	*helpers.EmbeddingProcessor
+}
+
+// NewLocalEmbeddingProcessor creates a wrapper around helpers.EmbeddingProcessor
+func NewLocalEmbeddingProcessor() *LocalEmbeddingProcessor {
+	return &LocalEmbeddingProcessor{
+		EmbeddingProcessor: &helpers.EmbeddingProcessor{},
+	}
+}
+
+// CosineSimilarity method added to local wrapper (fixes the error)
+func (ep *LocalEmbeddingProcessor) CosineSimilarity(a, b []float64) (float64, error) {
+	if len(a) != len(b) {
+		return 0, fmt.Errorf("embedding dimensions don't match: %d != %d", len(a), len(b))
+	}
+
+	if len(a) == 0 {
+		return 0, fmt.Errorf("empty embedding vectors")
+	}
+
+	var dotProduct, normA, normB float64
+
+	// Calculate dot product and norms in one pass
+	for i := range a {
+		dotProduct += a[i] * b[i]
+		normA += a[i] * a[i]
+		normB += b[i] * b[i]
+	}
+
+	// Handle zero vectors
+	if normA == 0 || normB == 0 {
+		return 0.0, nil
+	}
+
+	// Calculate cosine similarity
+	similarity := dotProduct / (math.Sqrt(normA) * math.Sqrt(normB))
+
+	return similarity, nil
+}
 
 // NetworkIntegrationService handles network layer integration with Kademlia DHT
 type NetworkIntegrationService struct {
 	kademliaNode       *kademlia.KademliaNode
-	embeddingProcessor *helpers.EmbeddingProcessor
+	embeddingProcessor *LocalEmbeddingProcessor
 	hostPeerID         peer.ID
 	currentDepth       int
 }
 
 // NewNetworkIntegrationService creates a new network integration service
-func NewNetworkIntegrationService(node *kademlia.KademliaNode, processor *helpers.EmbeddingProcessor, depth int) *NetworkIntegrationService {
+func NewNetworkIntegrationService(node *kademlia.KademliaNode, processor *LocalEmbeddingProcessor, depth int) *NetworkIntegrationService {
 	return &NetworkIntegrationService{
 		kademliaNode:       node,
 		embeddingProcessor: processor,
@@ -35,141 +78,37 @@ func NewNetworkIntegrationService(node *kademlia.KademliaNode, processor *helper
 	}
 }
 
-// ProcessEmbeddingRequest handles all incoming embedding requests and routes/answers them appropriately.
+// ProcessEmbeddingRequest - Main function implementing the requested logic
 func (nis *NetworkIntegrationService) ProcessEmbeddingRequest(request *types.EmbeddingSearchRequest) (*types.EmbeddingSearchResponse, error) {
 	log.Printf("Processing embedding request: type=%s, target=%x, source=%s, depth=%d",
 		request.QueryType, request.TargetNodeID[:8], request.SourcePeerID, request.Depth)
 
-	// Determine if this node is the target
+	// Get current node's ID
 	myNodeID := nis.kademliaNode.GetID()
 
-	// Compare node IDs properly (byte slice comparison)
-	if bytesEqual(request.TargetNodeID, myNodeID) {
-		log.Printf("Target node matches current peer - processing locally")
-		return nis.processLocalEmbeddingTarget(request)
+	// Check if target node ID is the same as peer's node ID using bytes.Equal
+	if bytes.Equal(request.TargetNodeID, myNodeID) {
+		log.Printf("Target node matches current peer - finding next node by cosine similarity")
+		return nis.findNextNodeBySimilarity(request)
 	} else {
-		log.Printf("Target node doesn't match - finding closest peer for forwarding")
-		return nis.forwardEmbeddingToClosestPeer(request)
+		log.Printf("Target node doesn't match - routing via Kademlia to target %x", request.TargetNodeID[:8])
+		return nis.routeViaKademlia(request)
 	}
 }
 
-// processLocalEmbeddingTarget handles when current node is the target for embedding operations
-func (nis *NetworkIntegrationService) processLocalEmbeddingTarget(request *types.EmbeddingSearchRequest) (*types.EmbeddingSearchResponse, error) {
-	log.Printf("Processing embedding request locally for target node %x, type: %s", request.TargetNodeID[:8], request.QueryType)
+// findNextNodeBySimilarity - When target matches current node, find next node by similarity
+func (nis *NetworkIntegrationService) findNextNodeBySimilarity(request *types.EmbeddingSearchRequest) (*types.EmbeddingSearchResponse, error) {
+	log.Printf("Finding next node by cosine similarity for embedding")
 
-	// Handle different types of embedding requests
-	switch request.QueryType {
-	case "search":
-		return nis.handleEmbeddingSearch(request)
-	case "store":
-		return nis.handleEmbeddingStore(request)
-	default:
-		return nis.handleGenericEmbedding(request)
-	}
-}
-
-// handleEmbeddingSearch processes embedding search requests
-func (nis *NetworkIntegrationService) handleEmbeddingSearch(request *types.EmbeddingSearchRequest) (*types.EmbeddingSearchResponse, error) {
-	log.Printf("Handling embedding search at depth %d for target %x", nis.currentDepth, request.TargetNodeID[:8])
-
-	// Use the Kademlia node's built-in embedding search functionality
-	response, err := nis.kademliaNode.HandleEmbeddingSearch(request)
+	// Get all stored embeddings from the node's database
+	storedEmbeddings, err := nis.kademliaNode.FindSimilar(request.QueryEmbed, 0.0, 100)
 	if err != nil {
-		log.Printf("Embedding search processing failed: %v", err)
-		return &types.EmbeddingSearchResponse{
-			QueryType:    "search_error",
-			QueryEmbed:   request.QueryEmbed,
-			Depth:        nis.currentDepth,
-			SourceNodeID: nis.kademliaNode.GetID(),
-			SourcePeerID: nis.kademliaNode.GetAddress(),
-			Found:        false,
-			NextNodeID:   nil,
-			FileEmbed:    nil,
-		}, err
-	}
-	return response, nil
-}
-
-// handleEmbeddingStore processes embedding storage requests
-func (nis *NetworkIntegrationService) handleEmbeddingStore(request *types.EmbeddingSearchRequest) (*types.EmbeddingSearchResponse, error) {
-	log.Printf("Handling embedding store at depth %d for target %x", nis.currentDepth, request.TargetNodeID[:8])
-
-	// Store the embedding using the Kademlia node's storage
-	err := nis.kademliaNode.StoreNodeEmbedding(request.TargetNodeID, request.QueryEmbed)
-	if err != nil {
-		log.Printf("Embedding store processing failed: %v", err)
-		return &types.EmbeddingSearchResponse{
-			QueryType:    "store_error",
-			QueryEmbed:   request.QueryEmbed,
-			Depth:        nis.currentDepth,
-			SourceNodeID: nis.kademliaNode.GetID(),
-			SourcePeerID: nis.kademliaNode.GetAddress(),
-			Found:        false,
-			NextNodeID:   nil,
-			FileEmbed:    nil,
-		}, err
+		return nil, fmt.Errorf("failed to retrieve stored embeddings: %w", err)
 	}
 
-	return &types.EmbeddingSearchResponse{
-		QueryType:    "store_response",
-		QueryEmbed:   request.QueryEmbed,
-		Depth:        nis.currentDepth,
-		SourceNodeID: nis.kademliaNode.GetID(),
-		SourcePeerID: nis.kademliaNode.GetAddress(),
-		Found:        true,
-		NextNodeID:   nil,
-		FileEmbed:    request.QueryEmbed,
-	}, nil
-}
-
-// handleGenericEmbedding processes other types of embedding requests
-func (nis *NetworkIntegrationService) handleGenericEmbedding(request *types.EmbeddingSearchRequest) (*types.EmbeddingSearchResponse, error) {
-	log.Printf("Handling generic embedding request of type: %s", request.QueryType)
-
-	// Use embedding processor if available
-	if nis.embeddingProcessor != nil {
-		embedding, err := nis.embeddingProcessor.ProcessEmbedding(request.QueryEmbed)
-		if err != nil {
-			log.Printf("Generic embedding processing failed: %v", err)
-		} else {
-			return &types.EmbeddingSearchResponse{
-				QueryType:    "processed",
-				QueryEmbed:   embedding,
-				Depth:        nis.currentDepth,
-				SourceNodeID: nis.kademliaNode.GetID(),
-				SourcePeerID: nis.kademliaNode.GetAddress(),
-				Found:        true,
-				NextNodeID:   nil,
-				FileEmbed:    embedding,
-			}, nil
-		}
-	}
-
-	// Default response for unknown types
-	return &types.EmbeddingSearchResponse{
-		QueryType:    "processed",
-		QueryEmbed:   request.QueryEmbed,
-		Depth:        nis.currentDepth,
-		SourceNodeID: nis.kademliaNode.GetID(),
-		SourcePeerID: nis.kademliaNode.GetAddress(),
-		Found:        false,
-		NextNodeID:   nis.findNextNodeForSearch(request),
-		FileEmbed:    nil,
-	}, nil
-}
-
-// forwardEmbeddingToClosestPeer finds the closest peer to target node id and forwards the embedding message
-func (nis *NetworkIntegrationService) forwardEmbeddingToClosestPeer(request *types.EmbeddingSearchRequest) (*types.EmbeddingSearchResponse, error) {
-	log.Printf("Finding closest peers to target %x for forwarding", request.TargetNodeID[:8])
-
-	// Use Kademlia routing table to find closest peers
-	rt := nis.kademliaNode.RoutingTable()
-	closestPeers := rt.FindClosest(request.TargetNodeID, rt.K)
-
-	if len(closestPeers) == 0 {
-		log.Printf("No peers found for forwarding to target %x", request.TargetNodeID[:8])
+	if len(storedEmbeddings) == 0 {
 		return &types.EmbeddingSearchResponse{
-			QueryType:    "no_peers",
+			QueryType:    "no_embeddings",
 			QueryEmbed:   request.QueryEmbed,
 			Depth:        request.Depth,
 			SourceNodeID: nis.kademliaNode.GetID(),
@@ -177,41 +116,93 @@ func (nis *NetworkIntegrationService) forwardEmbeddingToClosestPeer(request *typ
 			Found:        false,
 			NextNodeID:   nil,
 			FileEmbed:    nil,
-		}, fmt.Errorf("no peers available for forwarding")
+		}, fmt.Errorf("no embeddings found for similarity comparison")
 	}
 
-	// Use the closest peer for forwarding
-	closestPeer := closestPeers[0]
-	log.Printf("Forwarding embedding request to closest peer: %s (node ID: %x)", closestPeer.PeerID, closestPeer.NodeID[:8])
+	// Find the most similar embedding using cosine similarity
+	var bestMatch *EmbeddingResult
+	maxSimilarity := -2.0 // Start with value lower than minimum possible similarity
+
+	for _, stored := range storedEmbeddings {
+		similarity, err := nis.embeddingProcessor.CosineSimilarity(request.QueryEmbed, stored.Embedding)
+		if err != nil {
+			continue // Skip invalid embeddings
+		}
+
+		if similarity > maxSimilarity {
+			maxSimilarity = similarity
+			bestMatch = &EmbeddingResult{
+				NodeID:     stored.Key,
+				Embedding:  stored.Embedding,
+				Similarity: similarity,
+			}
+		}
+	}
+
+	if bestMatch == nil {
+		return &types.EmbeddingSearchResponse{
+			QueryType:    "similarity_error",
+			QueryEmbed:   request.QueryEmbed,
+			Depth:        request.Depth,
+			SourceNodeID: nis.kademliaNode.GetID(),
+			SourcePeerID: nis.kademliaNode.GetAddress(),
+			Found:        false,
+			NextNodeID:   nil,
+			FileEmbed:    nil,
+		}, fmt.Errorf("no valid similarity matches found")
+	}
+
+	log.Printf("Found next node by similarity: %x (similarity: %.4f)", bestMatch.NodeID[:8], bestMatch.Similarity)
+
+	// Return response with next node ID and Found = true (as requested)
+	return &types.EmbeddingSearchResponse{
+		QueryType:    "similarity_match",
+		QueryEmbed:   request.QueryEmbed,
+		Depth:        request.Depth + 1,
+		SourceNodeID: nis.kademliaNode.GetID(),
+		SourcePeerID: nis.kademliaNode.GetAddress(),
+		Found:        true,             // Found = true as requested
+		NextNodeID:   bestMatch.NodeID, // Next node ID from similarity match
+		FileEmbed:    bestMatch.Embedding,
+	}, nil
+}
+
+// routeViaKademlia - When target doesn't match, route via Kademlia DHT
+func (nis *NetworkIntegrationService) routeViaKademlia(request *types.EmbeddingSearchRequest) (*types.EmbeddingSearchResponse, error) {
+	log.Printf("Routing to target node %x via Kademlia", request.TargetNodeID[:8])
+
+	// Use Kademlia routing table to find the closest peer to the target
+	rt := nis.kademliaNode.RoutingTable()
+	closestPeers := rt.FindClosest(request.TargetNodeID, rt.K)
+
+	if len(closestPeers) == 0 {
+		return &types.EmbeddingSearchResponse{
+			QueryType:    "routing_error",
+			QueryEmbed:   request.QueryEmbed,
+			Depth:        request.Depth,
+			SourceNodeID: nis.kademliaNode.GetID(),
+			SourcePeerID: nis.kademliaNode.GetAddress(),
+			Found:        false,
+			NextNodeID:   nil,
+			FileEmbed:    nil,
+		}, fmt.Errorf("no peers available for routing to target %x", request.TargetNodeID[:8])
+	}
+
+	// Get the closest peer for forwarding
+	nextHop := closestPeers[0]
+
+	log.Printf("Routing to next hop: %s (node ID: %x)", nextHop.PeerID, nextHop.NodeID[:8])
 
 	return &types.EmbeddingSearchResponse{
-		QueryType:    "forward",
+		QueryType:    "routed",
 		QueryEmbed:   request.QueryEmbed,
 		Depth:        request.Depth,
 		SourceNodeID: nis.kademliaNode.GetID(),
 		SourcePeerID: nis.kademliaNode.GetAddress(),
-		Found:        false,
-		NextNodeID:   closestPeer.NodeID,
+		Found:        false,          // Found = false when routing
+		NextNodeID:   nextHop.NodeID, // Next hop from Kademlia routing
 		FileEmbed:    nil,
 	}, nil
-}
-
-// findNextNodeForSearch determines the next node for embedding search operations
-func (nis *NetworkIntegrationService) findNextNodeForSearch(request *types.EmbeddingSearchRequest) []byte {
-	// If we're at D4 (depth 4), no next node
-	if nis.currentDepth >= 4 {
-		return nil
-	}
-
-	// Use routing table to find a suitable next node
-	rt := nis.kademliaNode.RoutingTable()
-	closestPeers := rt.FindClosest(request.TargetNodeID, 1)
-
-	if len(closestPeers) > 0 {
-		return closestPeers[0].NodeID
-	}
-
-	return nil
 }
 
 // ProcessBatchEmbeddingRequests processes multiple embedding requests
@@ -278,22 +269,14 @@ func (nis *NetworkIntegrationService) ValidateEmbeddingRequest(request *types.Em
 	return nil
 }
 
-// Helper function to compare byte slices
-func bytesEqual(a, b []byte) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
+// Supporting type for embedding results
+type EmbeddingResult struct {
+	NodeID     []byte    `json:"node_id"`
+	Embedding  []float64 `json:"embedding"`
+	Similarity float64   `json:"similarity"`
 }
 
-// Helper functions from helpers package (kept here for compatibility)
-
-// ParseBootstrapAddr parses and validates a bootstrap address string.
+// Helper functions from helpers package
 func ParseBootstrapAddr(addr string) (peer.AddrInfo, error) {
 	maddr, err := peer.AddrInfoFromString(addr)
 	if err != nil {
@@ -302,7 +285,6 @@ func ParseBootstrapAddr(addr string) (peer.AddrInfo, error) {
 	return *maddr, nil
 }
 
-// XORDistance computes the XOR distance between two node IDs.
 func XORDistance(a, b []byte) *big.Int {
 	if len(a) != len(b) {
 		panic("IDs must be the same length")
@@ -314,7 +296,6 @@ func XORDistance(a, b []byte) *big.Int {
 	return new(big.Int).SetBytes(dist)
 }
 
-// BucketIndex returns the index of the bucket for a given node ID.
 func BucketIndex(selfID, otherID []byte) int {
 	if len(selfID) != len(otherID) {
 		panic("IDs must be the same length")
@@ -329,10 +310,9 @@ func BucketIndex(selfID, otherID []byte) int {
 			}
 		}
 	}
-	return -1 // identical IDs → no bucket
+	return -1
 }
 
-// RandomNodeID generates a random node ID of the correct length.
 func RandomNodeID() []byte {
 	id := make([]byte, identity.NodeIDBytes)
 	if _, err := rand.Read(id); err != nil {
@@ -341,8 +321,11 @@ func RandomNodeID() []byte {
 	return id
 }
 
-// Example usage function demonstrating how network layer would use this integration
-func ExampleEmbeddingNetworkIntegration(node *kademlia.KademliaNode, processor *helpers.EmbeddingProcessor, depth int) {
+// Example usage function
+func ExampleEmbeddingNetworkIntegration(node *kademlia.KademliaNode, depth int) {
+	// Create local embedding processor
+	processor := NewLocalEmbeddingProcessor()
+
 	// Create network integration service
 	nis := NewNetworkIntegrationService(node, processor, depth)
 
@@ -353,7 +336,7 @@ func ExampleEmbeddingNetworkIntegration(node *kademlia.KademliaNode, processor *
 		Depth:        0,
 		SourceNodeID: node.GetID(),
 		SourcePeerID: node.GetAddress(),
-		TargetNodeID: RandomNodeID(), // Generate random target for demo
+		TargetNodeID: RandomNodeID(),
 		Threshold:    0.8,
 		ResultsCount: 10,
 	}
@@ -364,34 +347,13 @@ func ExampleEmbeddingNetworkIntegration(node *kademlia.KademliaNode, processor *
 		return
 	}
 
-	// Process the embedding search request
+	// Process the embedding request - USES NEW ROUTING LOGIC
 	response, err := nis.ProcessEmbeddingRequest(searchRequest)
 	if err != nil {
-		log.Printf("Embedding search failed: %v", err)
+		log.Printf("Embedding processing failed: %v", err)
 	} else {
-		log.Printf("Embedding search response: type=%s, found=%t",
-			response.QueryType, response.Found)
-	}
-
-	// Example embedding store request
-	storeRequest := &types.EmbeddingSearchRequest{
-		QueryType:    "store",
-		QueryEmbed:   []float64{0.2, 0.3, 0.4, 0.5, 0.6},
-		Depth:        1,
-		SourceNodeID: node.GetID(),
-		SourcePeerID: node.GetAddress(),
-		TargetNodeID: node.GetID(), // Store locally for demo
-		Threshold:    0.7,
-		ResultsCount: 5,
-	}
-
-	// Process the embedding store request
-	response, err = nis.ProcessEmbeddingRequest(storeRequest)
-	if err != nil {
-		log.Printf("Embedding store failed: %v", err)
-	} else {
-		log.Printf("Embedding store response: type=%s, found=%t",
-			response.QueryType, response.Found)
+		log.Printf("Response: type=%s, found=%t, next_node=%x",
+			response.QueryType, response.Found, response.NextNodeID)
 	}
 
 	// Show network integration stats
