@@ -12,7 +12,6 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/peer"
 )
-//iesrvsekvjbhseryb
 // EmbeddingProcessor handles cosine similarity calculations for preprocessed embeddings
 type EmbeddingProcessor struct {
 	// Cache for storing similarity calculations to avoid recomputation

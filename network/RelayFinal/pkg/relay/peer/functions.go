@@ -4,7 +4,8 @@ import (
 	// ...
 	"bytes"
 	"context"
-	"relay/models"
+	"network/pkg/network"
+	"network/pkg/relay/models"
 
 	//"encoding/base64"
 	"encoding/json"
@@ -38,8 +39,6 @@ func StartNode(relayMultiAddrList []string) {
 	if err := Start(Peer,ctx); err != nil {
 		log.Fatal(err)
 	}
-
-	// initDHT()
 }
 
 func GET(targetPeerID string ,route string) ([]byte, error) { //"/ts=123&&id=123"
@@ -96,44 +95,53 @@ func POST(targetPeerID string, route string, body []byte) ([]byte, error) {
 	}
 
 	GetResp, err := Send(Peer, timeoutCtx, targetPeerID , jsonReq, body)
-
 	if err != nil {
 		fmt.Println("Error Sending trial get message")
 	}
+
 	GetResp = bytes.TrimRight(GetResp, "\x00")
 	return GetResp, nil
 }
 
-func ServeGetReq(paramsBytes []byte) []byte {
+func ServeGetReq(paramsBytes []byte, bodyBytes []byte) []byte {
 	var params map[string]any
 	err := json.Unmarshal(paramsBytes, &params)
+	if err != nil {
+		fmt.Println(err)
+	}
+	
+	var body map[string]any
+	err = json.Unmarshal(bodyBytes, &body)
 	if err != nil {
 		fmt.Println(err)
 	}
 
 	switch params["route"] {
 	case "find_value":
-		keyStr, ok := params["ts"].(string)
-		if !ok {
-			fmt.Println("ts is not a string")
-		}
-		fmt.Printf("Timestamp to retrieve: %s", keyStr)
-	//	return network.FindValueHandler(keyStr, globalLocalNode, GlobalRT)
-//uncomment this acc to use
+		return network.FindValueHandler()
+
+	case "ping":
+		return network.PingHandler(params, body)
 	}
 	
 	var resp []byte
 	return resp
-
 }
 
-func ServePostReq(paramsBytes []byte) []byte {
+func ServePostReq(paramsBytes []byte, bodyBytes []byte) []byte {
 	var params map[string]any
 	err := json.Unmarshal(paramsBytes, &params)
 	if err != nil {
 		fmt.Println(err)
 	}
-	return nil
+
+	switch params["route"]{
+	case "store":
+		return network.StoreHandler()
+	}
+
+	var resp []byte
+	return resp
 }
 
 // func ServePostReq(addr []byte, paramsBytes []byte, bodyBytes []byte) []byte {
