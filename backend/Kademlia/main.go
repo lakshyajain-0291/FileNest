@@ -316,7 +316,6 @@ func testNodeEmbeddingStorage() {
     fmt.Println("✓ Node embedding storage operations successful")
 }
 
-
 func testEmbeddingSearch() {
 	mockNetwork := NewMockNetwork()
 	defer mockNetwork.Cleanup()
