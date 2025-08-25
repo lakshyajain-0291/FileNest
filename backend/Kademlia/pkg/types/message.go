@@ -43,8 +43,6 @@ type PeerInfo struct {
 	PeerID string `json:"peer_id"`
 }
 
-// Add these to your existing messages.go file
-
 //sent to kademlia node
 type FindNodeRequest struct {
     SenderNodeID []byte `json:"sender_node_id"`
