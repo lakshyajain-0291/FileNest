@@ -152,7 +152,6 @@ func main() {
 	}
 	RelayHost.Network().Notify(&RelayEvents{})
 
-	// --- FIX: Use Render’s provided hostname instead of hardcoding ---
 	hostName := os.Getenv("RENDER_EXTERNAL_HOSTNAME")
 	if hostName == "" {
 		hostName = "localhost" // fallback for local testing
@@ -388,7 +387,7 @@ func handleDepthStream(s network.Stream) {
 				circuitAddr, _ := ma.NewMultiaddr("/p2p-circuit")
 				targetAddr, _ := ma.NewMultiaddr("/p2p/" + targetID.String())
 				fullAddr := relayBaseAddr.Encapsulate(circuitAddr).Encapsulate(targetAddr)
-				fmt.Println("[DEBUG]", fullAddr.String())
+				fmt.Println("[DEBUG] Target fullAddr: ", fullAddr.String())
 
 				addrInfo, err := peer.AddrInfoFromP2pAddr(fullAddr)
 				if err != nil {
@@ -428,7 +427,6 @@ func handleDepthStream(s network.Stream) {
 				}
 
 				fmt.Printf("[Debug]Resp from %s : %s \n", targetID.String(), string(respBody))
-				fmt.Println("[DEBUG]Raw Resp :", string(respBody))
 
 				_, err = s.Write(respBody)
 				if err != nil {
@@ -498,7 +496,6 @@ func handleDepthStream(s network.Stream) {
 				return
 			}
 			fmt.Printf("[Debug]Resp from %s : %s \n", targetID.String(), string(respBody))
-			fmt.Println("[DEBUG]Raw Resp :", string(respBody))
 
 			_, err = s.Write(respBody)
 			if err != nil {
@@ -582,13 +579,4 @@ func XorHexToBigInt(hex1, hex2 string) *big.Int {
 	return result
 }
 
-func AddRelayAddrToCSV(myAddr string, path string) error {
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	_, err = f.WriteString(myAddr + "\n")
-	return err
-}
 

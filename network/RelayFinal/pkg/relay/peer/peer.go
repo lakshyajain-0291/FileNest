@@ -118,7 +118,6 @@ func NewDepthPeer(relayMultiAddrList []string) (*models.DepthPeer, error) {
 	//hps is never explicitly used but runs in the bg
 	_ = hps
 
-
 	//next code calculates XOR Dist. w.r.t all relay peers to choose closest relay
 	var distmap []RelayDist
 	//OwnPubIP = GetPublicIP()
@@ -217,6 +216,7 @@ func Start(dp *models.DepthPeer, ctx context.Context) error {
 	log.Printf("[DEBUG] Reservation successful! Expiry: %v\n", reservation.Expiration)
 
 	log.Printf("[DEBUG] Peer Started! \n Peer ID: %s\n", dp.Host.ID())
+
 	//prints all listen addresses of host
 	for _, addr := range dp.Host.Addrs() {
 		log.Printf("[DEBUG] Address: %s/p2p/%s\n", addr, dp.Host.ID())
@@ -249,8 +249,7 @@ func Start(dp *models.DepthPeer, ctx context.Context) error {
 		log.Println("[DEBUG]Error marshalling the req to be sent")
 	}
 
-	n, err := stream.Write([]byte(reqJson))
-	log.Printf("Written %v bytes to stream", n)
+	_, err = stream.Write([]byte(reqJson))
 	if(err != nil){
 		log.Printf("error during writing to stream: %v", err.Error())
 	}
@@ -260,7 +259,7 @@ func Start(dp *models.DepthPeer, ctx context.Context) error {
 	return nil
 }
 
-//func to refresh relay reservations 
+//func to refresh relay reservations
 func refreshReservations(dp *models.DepthPeer, ctx context.Context, relayInfo peer.AddrInfo) {
 	ticker := time.NewTicker(5 * time.Minute) // Refresh every 5 minutes
 	defer ticker.Stop()
@@ -310,14 +309,23 @@ func handleDepthStream(s network.Stream) {
 		log.Printf("[DEBUG]ReqData is : %+v \n", reqData)
 
 		//GET method recv. from relay to peer
-		if reqData["Method"] == "GET" {
-			resp := ServeGetReq(reqStruct.ReqParams)
-			resp = bytes.TrimRight(resp, "\x00")
-			_, err = s.Write(resp)
-			if err != nil {
-				log.Println("[DEBUG]Error writing resp bytes to relay stream")
-				return
-			}
+		switch reqData["Method"] {
+			case "GET":
+				resp := ServeGetReq(reqStruct.ReqParams, reqStruct.Body)
+				resp = bytes.TrimRight(resp, "\x00")
+				_, err = s.Write(resp)
+				if err != nil {
+					log.Println("[DEBUG]Error writing resp bytes to relay stream")
+					return
+				}
+			case "POST":
+				resp := ServePostReq(reqStruct.ReqParams, reqStruct.Body)
+				resp = bytes.TrimRight(resp, "\x00")
+				_, err = s.Write(resp)
+				if err != nil {
+					log.Println("[DEBUG]Error writing resp bytes to relay stream")
+					return
+				}		
 		}
 	}
 }
@@ -347,17 +355,8 @@ func Send(dp *models.DepthPeer, ctx context.Context,targetPeerID string,jsonReq 
 	stream.Write([]byte(jsonReqRelay))
 
 	log.Println("[DEBUG]Msg req sent to relay, waiting for ack")
-
 	reader := bufio.NewReader(stream)
-	// ack, err := reader.ReadString('\n')
 
-	// if err != nil {
-	// 	log.Println("[DEBUG]Error getting the acknowledgement")
-	// 	return nil, err
-	// }
-	// _ = ack //can be used if required
-
-	// change size if needed
 	var resp = make([]byte, 1024*8)
 	reader.Read(resp)
 	resp = bytes.TrimRight(resp, "\x00")

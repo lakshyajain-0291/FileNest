@@ -1,5 +1,7 @@
 package models
 
+import "encoding/json"
+
 type Message struct {
 	Type          string       `json:"type"`
 	QueryEmbed    []float64    `json:"query_embed"`
@@ -9,6 +11,13 @@ type Message struct {
 	FileMetadata  FileMetadata `json:"file_metadata"`
 	IsProcessed   bool         `json:"is_processed"` //this is to check if the query has the reached the D4 node or not
 	Found         bool         `json:"found"`        //this is to confirm if the target peer id for a peer at any depth has been found or not
+}
+
+type ReqFormat struct {
+	Type      string          `json:"type,omitempty"`
+	PeerID    string          `json:"peerid,omitempty"`
+	ReqParams json.RawMessage `json:"reqparams,omitempty"`
+	Body      json.RawMessage `json:"body,omitempty"`
 }
 
 type FileMetadata struct {
