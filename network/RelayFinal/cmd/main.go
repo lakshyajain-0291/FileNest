@@ -2,14 +2,11 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	genmodels "network/pkg/generalpeer/models"
 	"network/pkg/generalpeer/ws"
 	"network/pkg/relay/helpers"
-	relaymodels "network/pkg/relay/models"
 	"network/pkg/relay/peer"
-	"time"
 )
 
 func main(){
@@ -50,31 +47,31 @@ func main(){
 	ctx := context.Background()
 	peer.Start(p,ctx)
 		
-	pid := "12D3KooWAK9vNDzZhftJepCDBdf9gsAcidnQj6Kpv4k6nCanirmZ"
+	// pid := "12D3KooWAK9vNDzZhftJepCDBdf9gsAcidnQj6Kpv4k6nCanirmZ"
 
-	req := relaymodels.ReqFormat{
-		Type: "GET",
-		PeerID: pid,
-	}
-	reqJson, _ := json.Marshal(req);
+	// req := relaymodels.ReqFormat{
+	// 	Type: "GET",
+	// 	PeerID: pid,
+	// }
+	// reqJson, _ := json.Marshal(req);
 
-	body := struct {
-		Route string
-		Ts time.Time
-	}{	
-		"find_value",
-		time.Now(),
-	}
-	bodyJson, _ := json.Marshal(body);
+	// body := struct {
+	// 	Route string
+	// 	Ts time.Time
+	// }{	
+	// 	"find_value",
+	// 	time.Now(),
+	// }
+	// bodyJson, _ := json.Marshal(body);
 
-	resp, err := peer.Send(p,ctx, pid, reqJson, bodyJson)
-	if(err != nil){
-		log.Println(err.Error())
-	}
+	// resp, err := peer.Send(p,ctx, pid, reqJson, bodyJson)
+	// if(err != nil){
+	// 	log.Println(err.Error())
+	// }
 
-	var respDec any;
-	json.Unmarshal(resp, &respDec)
-	log.Printf("Response: %+v", respDec)
+	// var respDec any;
+	// json.Unmarshal(resp, &respDec)
+	// log.Printf("Response: %+v", respDec)
 
 	select{}
 }
