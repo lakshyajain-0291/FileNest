@@ -13,6 +13,7 @@ import (
 )
 
 type KademliaNode struct {
+// RoutingTable returns the node's routing table (exported getter)
 	NodeID       []byte // Persistent NodeID
 	PeerID       string // Ephemeral libp2p PeerID
 	routingTable *RoutingTable // stores nodeIDs which have contacted the Node before
@@ -21,6 +22,7 @@ type KademliaNode struct {
 }
 
 func NewKademliaNode(nodeID []byte, peerID string, network NetworkInterface, dbPath string) (*KademliaNode, error) {
+// RoutingTable returns the node's routing table (exported getter)}
 	// Initialize SQLite storage
 	sqliteStorage, err := storage.NewSQLiteStorage(dbPath)
 	if err != nil {
@@ -34,6 +36,10 @@ func NewKademliaNode(nodeID []byte, peerID string, network NetworkInterface, dbP
 		storage:      sqliteStorage,                       // Initialize storage
 		network:      network,
 	}, nil
+}
+
+func (k *KademliaNode) RoutingTable() *RoutingTable {
+	return k.routingTable
 }
 // Storage wrapper functions - Add these to your node.go
 func (k *KademliaNode) StoreNodeEmbedding(nodeID []byte, embedding []float64) error {
