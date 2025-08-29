@@ -6,6 +6,7 @@ toolchain go1.24.4
 
 require (
 	final/backend v0.0.0-00010101000000-000000000000
+	github.com/gorilla/websocket v1.5.3
 	github.com/joho/godotenv v1.5.1
 	github.com/libp2p/go-libp2p v0.43.0
 	github.com/multiformats/go-multiaddr v0.16.1

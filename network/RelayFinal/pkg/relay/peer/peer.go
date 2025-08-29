@@ -37,7 +37,7 @@ import (
 	libp2ptls "github.com/libp2p/go-libp2p/p2p/security/tls"
 )
 
-const DepthPeerProtocol = protocol.ID("/depth/1.0.0")
+const UserPeerProtocol = protocol.ID("/depth/1.0.0")
 
 var OwnPubIP string
 
@@ -48,7 +48,7 @@ var OwnPubIP string
 // 	dist    *big.Int
 // }
 
-func NewDepthPeer(relayMultiAddrList []string) (*models.DepthPeer, error) {
+func NewPeer(relayMultiAddrList []string, peerType string) (*models.UserPeer, error) {
 
 	// extracts relay peerIDs by splitting
 	var relayList []string
@@ -169,7 +169,7 @@ func NewDepthPeer(relayMultiAddrList []string) (*models.DepthPeer, error) {
 	log.Println("[DEBUG] Creating circuit relay client")
 	// _ = client // Import for reservation function
 
-	dp := &models.DepthPeer{
+	dp := &models.UserPeer{
 		Host:      h,
 		RelayAddr: relayMA,
 		RelayID:   relayInfo.ID,
@@ -178,9 +178,14 @@ func NewDepthPeer(relayMultiAddrList []string) (*models.DepthPeer, error) {
 
 	log.Println(h.ID().String())
 
-	log.Println("[DEBUG] Setting stream handler for Depth protocol")
-	h.SetStreamHandler(DepthPeerProtocol,handleDepthStream)
-
+	switch peerType {
+	case "depth":
+		log.Println("[DEBUG] Setting stream handler for Depth protocol")
+		h.SetStreamHandler(UserPeerProtocol,handleDepthStream)
+	case "user":
+		log.Println("[DEBUG] Setting stream handler for User protocol")
+		h.SetStreamHandler(UserPeerProtocol,handleDepthStream)
+	}
 	return dp, nil
 }
 
@@ -198,7 +203,7 @@ func isPrivateAddr(addr multiaddr.Multiaddr) bool {
 		strings.Contains(addrStr, "172.31.")
 }
 
-func Start(dp *models.DepthPeer, ctx context.Context) error {
+func Start(dp *models.UserPeer, ctx context.Context) error {
 	log.Println("[DEBUG] Connecting to relay:", dp.RelayAddr)
 	relayInfo, _ := peer.AddrInfoFromP2pAddr(dp.RelayAddr)
 	if err := dp.Host.Connect(ctx, *relayInfo); err != nil {
@@ -238,7 +243,7 @@ func Start(dp *models.DepthPeer, ctx context.Context) error {
 	//reqSent.PubIP = OwnPubIP // have to use a stun server to get public ip first and then send register command
 	log.Printf("reqSent PID: %v\n",reqSent.PeerID)
 
-	stream, err := dp.Host.NewStream(context.Background(), relayInfo.ID, DepthPeerProtocol)
+	stream, err := dp.Host.NewStream(context.Background(), relayInfo.ID, UserPeerProtocol)
 	if err != nil {
 		log.Println("[DEBUG]Error Opening stream to relay")
 	}
@@ -260,7 +265,7 @@ func Start(dp *models.DepthPeer, ctx context.Context) error {
 }
 
 //func to refresh relay reservations
-func refreshReservations(dp *models.DepthPeer, ctx context.Context, relayInfo peer.AddrInfo) {
+func refreshReservations(dp *models.UserPeer, ctx context.Context, relayInfo peer.AddrInfo) {
 	ticker := time.NewTicker(5 * time.Minute) // Refresh every 5 minutes
 	defer ticker.Stop()
 
@@ -299,20 +304,22 @@ func handleDepthStream(s network.Stream) {
 			log.Println("[DEBUG]Error unmarshalling to reqStruct")
 		}
 		json.Unmarshal(line, &reqStruct)
-		
-		var reqData map[string]any
+
+		var reqParams map[string]any
 		reqStruct.ReqParams = bytes.TrimRight(reqStruct.ReqParams, "\x00")
-		if err := json.Unmarshal(reqStruct.ReqParams, &reqData); err != nil {
+		if err := json.Unmarshal(reqStruct.ReqParams, &reqParams); err != nil {
 			log.Printf("[ERROR] Failed to unmarshal incoming request: %v\n", err)
 			return
 		}
-		log.Printf("[DEBUG]ReqData is : %+v \n", reqData)
+		log.Printf("[DEBUG]ReqParams is : %+v \n", reqParams)
 
 		//GET method recv. from relay to peer
-		switch reqData["Method"] {
+		switch reqParams["type"] {
 			case "GET":
-				resp := ServeGetReq(reqStruct.ReqParams, reqStruct.Body)
+				log.Printf("Serving GET Req")
+				resp := ServeGetReq(reqStruct.ReqParams)
 				resp = bytes.TrimRight(resp, "\x00")
+				log.Printf("Response for GET is: %+v", string(resp))
 				_, err = s.Write(resp)
 				if err != nil {
 					log.Println("[DEBUG]Error writing resp bytes to relay stream")
@@ -330,16 +337,18 @@ func handleDepthStream(s network.Stream) {
 	}
 }
 
-func Send(dp *models.DepthPeer, ctx context.Context,targetPeerID string,jsonReq []byte, body []byte) ([]byte, error) {
+func Send(dp *models.UserPeer, ctx context.Context,targetPeerID string,reqParams []byte, body []byte) ([]byte, error) {
 	//completeIP := TargetIP + ":" + targetPort
 
+	//sends msg to relay
 	var req models.ReqFormat
 	req.Type = "SendMsg"
-	//req.PeerID = completeIP
 	req.PeerID = targetPeerID
-	req.ReqParams = jsonReq
+	req.ReqParams = reqParams // all req data is sent in reqParams
 	req.Body = body
-	stream, err := dp.Host.NewStream(ctx, dp.RelayID, DepthPeerProtocol)
+	log.Printf("Sending req: %+v", req)
+
+	stream, err := dp.Host.NewStream(ctx, dp.RelayID, UserPeerProtocol)
 	if err != nil {
 		log.Println("[DEBUG]Error opneing a fetch ID stream to relay")
 		return nil, err
@@ -365,7 +374,7 @@ func Send(dp *models.DepthPeer, ctx context.Context,targetPeerID string,jsonReq 
 	return resp, err
 }
 
-func GetConnectedPeers(dp *models.DepthPeer) []peer.ID {
+func GetConnectedPeers(dp *models.UserPeer) []peer.ID {
 	var peers []peer.ID
 	for _, conn := range dp.Host.Network().Conns() {
 		remotePeer := conn.RemotePeer()
@@ -377,7 +386,7 @@ func GetConnectedPeers(dp *models.DepthPeer) []peer.ID {
 	return peers
 }
 
-func Close(dp *models.DepthPeer) error {
+func Close(dp *models.UserPeer) error {
 	log.Println("[DEBUG] Closing Host")
 	return dp.Host.Close()
 }

@@ -3,23 +3,22 @@ package network
 import (
 	"encoding/json"
 	"log"
-	"final/network/RelayFinal/pkg/relay/models"
+	_ "final/network/RelayFinal/pkg/relay/models"
 )
 
-func FindValueHandler() []byte{
-	var resp []byte
-	return resp
+func FindValueHandler(params map[string]any) []byte{
+	log.Printf("params recv to PingHandler is: %+v", params)
+	// add functionality for checking all params here
+	
+	reqJson, _ := json.Marshal(params)
+	return reqJson
 }
 
-func PingHandler(params map[string]any, body map[string]any) []byte{
-	if(body["sender_addr"] == ""){
-		log.Printf("Invalid Sender addr: %v", body["sender_addr"])
-		return nil;
-	}
-	bodyJson, _ := json.Marshal(body)
-	var req models.PingRequest
-	json.Unmarshal(bodyJson,&req)
-	reqJson, _ := json.Marshal(req)
+func PingHandler(params map[string]any) []byte{
+	log.Printf("params recv to PingHandler is: %+v", params)
+	// add functionality for checking all params here
+
+	reqJson, _ := json.Marshal(params)
 	return reqJson
 }
 

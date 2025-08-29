@@ -61,7 +61,7 @@ func main() {
 	log.Printf("relayAddrs in Mongo: %+v\n", relayAddrs)
 
 	// Start Depth Peer using your actual NewDepthPeer function
-	p, err := peer.NewDepthPeer(relayAddrs)
+	p, err := peer.NewPeer(relayAddrs, "USER")
 	if err != nil {
 		log.Printf("Error on NewDepthPeer: %v\n", err.Error())
 	}

@@ -8,7 +8,7 @@ import (
 	"github.com/multiformats/go-multiaddr"
 )
 
-type DepthPeer struct {
+type UserPeer struct {
 	Host      host.Host
 	RelayAddr multiaddr.Multiaddr
 	RelayID   peer.ID
@@ -50,6 +50,7 @@ type PingRequest struct {
 	ReceiverPeerID string `json:"ReceiverPeerID"`
 	SenderNodeID []byte `json:"sender_id"`
 	SenderPeerID string `json:"sender_addr"`
+	RecieverNodeID []byte `json:"receiver_id"`
 	Timestamp    int64  `json:"timestamp"`
 }
 
