@@ -8,7 +8,7 @@ import (
 	"github.com/multiformats/go-multiaddr"
 )
 
-type DepthPeer struct {
+type UserPeer struct {
 	Host      host.Host
 	RelayAddr multiaddr.Multiaddr
 	RelayID   peer.ID

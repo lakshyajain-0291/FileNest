@@ -17,8 +17,8 @@ func main() {
 	var mlChan chan genmodels.ClusterWrapper
 
 	// Define flags
-	sendReq := flag.Bool("sendreq", false, "Whether to send request to target peer")
-	pid := flag.String("pid", "", "Target peer ID to send request to (used only if sendreq=true)")
+	pid := flag.String("pid", "", "Target peer ID to send request to (optional)")
+	peerType := flag.String("peertype", "user", "Type of peer to start: 'user' or 'depth'")
 	flag.Parse()
 
 	peerTransport := ws.NewWebSocketTransport(":8080")
@@ -51,27 +51,22 @@ func main() {
 	}
 	log.Printf("relayAddrs in Mongo: %+v\n", relayAddrs)
 
-	// Start Depth Peer
-	p, err := peer.NewDepthPeer(relayAddrs)
-	if err != nil {
-		log.Printf("Error on NewDepthPeer: %v\n", err.Error())
-	}
-
+	// Initialize peer based on flag
 	ctx := context.Background()
+	p, err := peer.NewPeer(relayAddrs, *peerType)
+	if err != nil {
+		log.Fatalf("Error creating %s peer: %v", *peerType, err)
+	}
 	peer.Start(p, ctx)
+	log.Printf("Started %s peer successfully", *peerType)
 
-	// Conditionally send request if flag is set
-	if *sendReq {
-		if *pid == "" {
-			log.Fatal("You must provide a -pid value when using -sendreq")
-		}
-		
-		// stores extra data like routing
+	// If pid is provided, send request
+	if *pid != "" {
 		params := models.PingRequest{
-			Type: "GET",
-			Route: "ping",
+			Type:           "GET",
+			Route:          "ping",
 			ReceiverPeerID: *pid,
-			Timestamp: time.Now().Unix(),
+			Timestamp:      time.Now().Unix(),
 		}
 		jsonParams, _ := json.Marshal(params)
 
@@ -85,6 +80,5 @@ func main() {
 		log.Printf("Response: %+v", respDec)
 	}
 
-	// Block main goroutine
 	select {}
 }

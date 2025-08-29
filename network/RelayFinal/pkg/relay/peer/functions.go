@@ -1,39 +1,37 @@
 package peer
 
 import (
-	"context"
 	"network/pkg/network"
 	"network/pkg/relay/models"
 
 	"encoding/json"
 	"fmt"
-	"log"
 	"math/big"
 )
 
-var Peer *models.DepthPeer
+var Peer *models.UserPeer
 
 type RelayDist struct {
 	relayID string
 	dist    *big.Int
 }
 
-func StartNode(relayMultiAddrList []string) {
-	fmt.Println("[DEBUG] Starting Node with relayMultiAddrList:", relayMultiAddrList)
+// func StartNode(relayMultiAddrList []string) {
+// 	fmt.Println("[DEBUG] Starting Node with relayMultiAddrList:", relayMultiAddrList)
 
-	var err error
-	Peer, err = NewDepthPeer(relayMultiAddrList)
-	if err != nil {
-		fmt.Println("[ERROR] Error creating peer:", err)
-		return
-	}
+// 	var err error
+// 	Peer, err = NewPeer(relayMultiAddrList, "depth")
+// 	if err != nil {
+// 		fmt.Println("[ERROR] Error creating peer:", err)
+// 		return
+// 	}
 
-	ctx := context.Background()
-	if err := Start(Peer, ctx); err != nil {
-		log.Fatal("[FATAL] Start failed:", err)
-	}
-	fmt.Println("[DEBUG] Node started successfully.")
-}
+// 	ctx := context.Background()
+// 	if err := Start(Peer, ctx); err != nil {
+// 		log.Fatal("[FATAL] Start failed:", err)
+// 	}
+// 	fmt.Println("[DEBUG] Node started successfully.")
+// }
 
 // func GET(targetPeerID string, route string) ([]byte, error) {
 // 	fmt.Println("[DEBUG][GET] Called with targetPeerID:", targetPeerID, " route:", route)
@@ -128,7 +126,7 @@ func ServeGetReq(paramsBytes []byte) []byte {
 	switch params["route"] {
 	case "find_value":
 		fmt.Println("[DEBUG][ServeGetReq] Handling route: find_value")
-		return network.FindValueHandler()
+		return network.FindValueHandler(params)
 
 	case "ping":
 		fmt.Println("[DEBUG][ServeGetReq] Handling route: ping")
