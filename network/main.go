@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	// Your actual network imports based on the GitHub structure
@@ -16,7 +18,8 @@ import (
 
 	// Import your Kademlia integration wrapper
 	"final/backend/pkg/integration"
-	
+	"final/backend/pkg/types"
+
 	// Kademlia helpers for node ID conversion
 	kadhelpers "final/backend/pkg/helpers"
 )
@@ -28,6 +31,7 @@ func main() {
 	sendReq := flag.Bool("sendreq", false, "Whether to send request to target peer")
 	pid := flag.String("pid", "", "Target peer ID to send request to (used only if sendreq=true)")
 	useKademlia := flag.Bool("kademlia", false, "Use Kademlia for embedding search")
+	bootstrapAddrs := flag.String("bootstrap", "", "Comma-separated bootstrap node addresses")
 	flag.Parse()
 
 	peerTransport := ws.NewWebSocketTransport(":8080")
@@ -57,6 +61,7 @@ func main() {
 	relayAddrs, err := helpers.GetRelayAddrFromMongo()
 	if err != nil {
 		log.Printf("Error during get relay addrs: %v", err.Error())
+		return
 	}
 	log.Printf("relayAddrs in Mongo: %+v\n", relayAddrs)
 
@@ -64,30 +69,92 @@ func main() {
 	p, err := peer.NewPeer(relayAddrs, "USER")
 	if err != nil {
 		log.Printf("Error on NewDepthPeer: %v\n", err.Error())
+		return
 	}
 
 	ctx := context.Background()
-	peer.Start(p, ctx)
+	err = peer.Start(p, ctx)
+	if err != nil {
+		log.Printf("Error starting peer: %v", err)
+		return
+	}
 
 	// ===== KADEMLIA INTEGRATION =====
 	var kademliaHandler *integration.ComprehensiveKademliaHandler
-	
+
 	if *useKademlia {
 		// Initialize Kademlia handler
 		kademliaHandler = integration.NewComprehensiveKademliaHandler()
-		
+
 		// Use the actual Host ID from your DepthPeer
 		err = kademliaHandler.InitializeNode(
 			"relay-node-"+time.Now().String(),
-			p.Host.ID().String(), // Use the actual libp2p Host ID
+			p.Host.ID().String(),
 			"./kademlia_relay.db",
 		)
+
 		if err != nil {
 			log.Printf("Failed to initialize Kademlia: %v", err)
 		} else {
 			log.Println("✓ Kademlia integration initialized")
-			
-			// Store some test embeddings using your actual models
+
+			// BOOTSTRAP LOGIC - Multiple strategies
+			var bootstrapNodes []string
+
+			// Strategy 1: Use explicit bootstrap addresses if provided
+			if *bootstrapAddrs != "" {
+				bootstrapNodes = strings.Split(*bootstrapAddrs, ",")
+				log.Printf("🔄 Using explicit bootstrap nodes: %v", bootstrapNodes)
+			} else {
+				// Strategy 2: Use relay addresses as bootstrap nodes
+				bootstrapNodes = relayAddrs
+				log.Printf("🔄 Using relay addresses as bootstrap nodes: %v", bootstrapNodes)
+			}
+
+			// Perform bootstrap
+			if len(bootstrapNodes) > 0 {
+				log.Println("🚀 Starting Kademlia bootstrap process...")
+				successCount := 0
+
+				for _, addr := range bootstrapNodes {
+					err := bootstrapFromAddress(kademliaHandler, addr)
+					if err != nil {
+						log.Printf("❌ Bootstrap failed for %s: %v", addr, err)
+					} else {
+						successCount++
+						log.Printf("✅ Bootstrap successful for %s", addr)
+					}
+				}
+
+				if successCount > 0 {
+					log.Printf("✓ Bootstrap completed with %d/%d successful connections",
+						successCount, len(bootstrapNodes))
+
+					// Perform iterative lookup to discover more peers
+					log.Println("🔍 Performing peer discovery...")
+					_, err := kademliaHandler.IterativeFindNode(
+						kadhelpers.HashNodeIDFromString(p.Host.ID().String()))
+					if err != nil {
+						log.Printf("Warning: Peer discovery failed: %v", err)
+					} else {
+						log.Println("✓ Peer discovery completed")
+					}
+				} else {
+					log.Println("⚠️  Bootstrap failed for all nodes - running in isolated mode")
+				}
+			}
+
+			// Add target peer to routing table if provided
+			if *sendReq && *pid != "" {
+				err := addTargetPeerToRoutingTable(kademliaHandler, *pid)
+				if err != nil {
+					log.Printf("Failed to add target peer: %v", err)
+				} else {
+					log.Printf("✓ Added target peer to routing table: %s", (*pid)[:12]+"...")
+				}
+			}
+
+			// Store test embeddings
 			testFiles := []genmodels.ClusterFile{
 				{
 					Filename: "document1.pdf",
@@ -112,7 +179,7 @@ func main() {
 					Embedding: []float64{0.9, 0.1, 0.0, 0.0, 0.0},
 				},
 			}
-			
+
 			for _, file := range testFiles {
 				nodeID := kadhelpers.HashNodeIDFromString(file.Filename)
 				err := kademliaHandler.StoreEmbedding(nodeID, file.Embedding)
@@ -122,6 +189,12 @@ func main() {
 					log.Printf("✓ Stored embedding for file: %s", file.Filename)
 				}
 			}
+
+			// Display routing table statistics
+			stats := kademliaHandler.GetNodeStatistics()
+			routingInfo := kademliaHandler.GetRoutingInfo()
+			log.Printf("📊 Node Statistics: %+v", stats)
+			log.Printf("🗺️  Routing table contains %d peers", len(routingInfo))
 		}
 	}
 
@@ -131,27 +204,26 @@ func main() {
 			log.Fatal("You must provide a -pid value when using -sendreq")
 		}
 
-		// Create request using your actual PingRequest model
+		// Create request using your actual models
 		params := models.PingRequest{
 			Type:           "GET",
 			Route:          "ping",
 			ReceiverPeerID: *pid,
 			Timestamp:      time.Now().Unix(),
 		}
-		
-		// Create request body based on whether Kademlia is used
+
 		var requestBody interface{}
-		
+
 		if *useKademlia && kademliaHandler != nil {
 			log.Println("🔍 Creating Kademlia embedding search request...")
-			
-			// Create input Message using your actual genmodels.Message structure
+
+			// Create input Message
 			inputMessage := genmodels.Message{
 				Type:          "embedding_search",
 				QueryEmbed:    []float64{0.1, 0.2, 0.3, 0.4, 0.5},
 				Depth:         0,
-				CurrentPeerID: 0, // Current peer (will be set by system)
-				NextPeerID:    0, // Target peer (to be determined by Kademlia)
+				CurrentPeerID: 0,
+				NextPeerID:    0,
 				FileMetadata: genmodels.FileMetadata{
 					Name:         "query_document.pdf",
 					CreatedAt:    time.Now().Format(time.RFC3339),
@@ -159,8 +231,8 @@ func main() {
 					FileSize:     512.0,
 					UpdatedAt:    time.Now().Format(time.RFC3339),
 				},
-				IsProcessed:   false,
-				Found:         false,
+				IsProcessed: false,
+				Found:       false,
 			}
 
 			// Process through Kademlia wrapper
@@ -169,11 +241,11 @@ func main() {
 				inputMessage.QueryEmbed,
 				targetNodeID,
 				inputMessage.Type,
-				0.8, // Threshold
-				10,  // Results count
+				0.8,
+				10,
 			)
 
-			// Create output message with Kademlia results
+			// Create output message
 			outputMessage := genmodels.Message{
 				Type:          inputMessage.Type,
 				QueryEmbed:    inputMessage.QueryEmbed,
@@ -197,7 +269,6 @@ func main() {
 				}
 			}
 
-			// Set request body with both input and output using your models
 			requestBody = map[string]interface{}{
 				"input_message":  inputMessage,
 				"output_message": outputMessage,
@@ -205,11 +276,9 @@ func main() {
 				"timestamp":      time.Now().Unix(),
 			}
 
-			// Update route to indicate Kademlia usage
 			params.Route = "kademlia_search"
 
 		} else {
-			// Regular request body (original behavior)
 			requestBody = map[string]interface{}{
 				"message":       "Hello from relay peer",
 				"timestamp":     time.Now().Unix(),
@@ -217,21 +286,55 @@ func main() {
 			}
 		}
 
-		// Marshal both params and body
+		// Send request
 		jsonParams, _ := json.Marshal(params)
 		bodyJson, _ := json.Marshal(requestBody)
 
-		// Send request using your actual peer.Send function
 		resp, err := peer.Send(p, ctx, *pid, jsonParams, bodyJson)
 		if err != nil {
 			log.Printf("Error sending request: %v", err)
 		} else {
 			var respDec any
-			json.Unmarshal(resp, &respDec)
-			log.Printf("Response: %+v", respDec)
+			if len(resp) > 0 {
+				json.Unmarshal(resp, &respDec)
+				log.Printf("Response: %+v", respDec)
+			} else {
+				log.Println("Received empty response")
+			}
 		}
 	}
 
 	// Block main goroutine
 	select {}
+}
+
+// Helper function to bootstrap from a single address
+func bootstrapFromAddress(handler *integration.ComprehensiveKademliaHandler, addr string) error {
+	// Extract peer ID from multiaddr
+	parts := strings.Split(addr, "/")
+	if len(parts) < 2 {
+		return fmt.Errorf("invalid multiaddr format: %s", addr)
+	}
+
+	peerIDStr := parts[len(parts)-1]
+	nodeID := kadhelpers.HashNodeIDFromString(peerIDStr)
+
+	// Add to routing table
+	peerInfo := types.PeerInfo{
+		NodeID: nodeID,
+		PeerID: peerIDStr,
+	}
+
+	return handler.AddPeerToRoutingTable(peerInfo)
+}
+
+// Helper function to add target peer to routing table
+func addTargetPeerToRoutingTable(handler *integration.ComprehensiveKademliaHandler, pid string) error {
+	targetNodeID := kadhelpers.HashNodeIDFromString(pid)
+	targetPeer := types.PeerInfo{
+		NodeID: targetNodeID,
+		PeerID: pid,
+	}
+
+	return handler.AddPeerToRoutingTable(targetPeer)
 }
