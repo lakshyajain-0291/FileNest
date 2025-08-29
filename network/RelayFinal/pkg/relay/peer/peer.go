@@ -299,20 +299,22 @@ func handleDepthStream(s network.Stream) {
 			log.Println("[DEBUG]Error unmarshalling to reqStruct")
 		}
 		json.Unmarshal(line, &reqStruct)
-		
-		var reqData map[string]any
+
+		var reqParams map[string]any
 		reqStruct.ReqParams = bytes.TrimRight(reqStruct.ReqParams, "\x00")
-		if err := json.Unmarshal(reqStruct.ReqParams, &reqData); err != nil {
+		if err := json.Unmarshal(reqStruct.ReqParams, &reqParams); err != nil {
 			log.Printf("[ERROR] Failed to unmarshal incoming request: %v\n", err)
 			return
 		}
-		log.Printf("[DEBUG]ReqData is : %+v \n", reqData)
+		log.Printf("[DEBUG]ReqParams is : %+v \n", reqParams)
 
 		//GET method recv. from relay to peer
-		switch reqData["Method"] {
+		switch reqParams["type"] {
 			case "GET":
-				resp := ServeGetReq(reqStruct.ReqParams, reqStruct.Body)
+				log.Printf("Serving GET Req")
+				resp := ServeGetReq(reqStruct.ReqParams)
 				resp = bytes.TrimRight(resp, "\x00")
+				log.Printf("Response for GET is: %+v", string(resp))
 				_, err = s.Write(resp)
 				if err != nil {
 					log.Println("[DEBUG]Error writing resp bytes to relay stream")
@@ -330,15 +332,17 @@ func handleDepthStream(s network.Stream) {
 	}
 }
 
-func Send(dp *models.DepthPeer, ctx context.Context,targetPeerID string,jsonReq []byte, body []byte) ([]byte, error) {
+func Send(dp *models.DepthPeer, ctx context.Context,targetPeerID string,reqParams []byte, body []byte) ([]byte, error) {
 	//completeIP := TargetIP + ":" + targetPort
 
+	//sends msg to relay
 	var req models.ReqFormat
 	req.Type = "SendMsg"
-	//req.PeerID = completeIP
 	req.PeerID = targetPeerID
-	req.ReqParams = jsonReq
+	req.ReqParams = reqParams // all req data is sent in reqParams
 	req.Body = body
+	log.Printf("Sending req: %+v", req)
+
 	stream, err := dp.Host.NewStream(ctx, dp.RelayID, DepthPeerProtocol)
 	if err != nil {
 		log.Println("[DEBUG]Error opneing a fetch ID stream to relay")

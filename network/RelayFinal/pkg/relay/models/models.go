@@ -45,8 +45,12 @@ type EmbeddingSearchResponse struct {
 }
 
 type PingRequest struct {
+	Type string `json:"type"`
+	Route string `json:"route"`
 	SenderNodeID []byte `json:"sender_id"`
 	SenderPeerID string `json:"sender_addr"`
+	RecieverNodeID []byte `json:"receiver_id"`
+	ReceiverPeerID string `json:"receiver_addr"`
 	Timestamp    int64  `json:"timestamp"`
 }
 
