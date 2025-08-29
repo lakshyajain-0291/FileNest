@@ -4,8 +4,8 @@ import (
 	// ...
 	"bytes"
 	"context"
-	"network/pkg/network"
-	"network/pkg/relay/models"
+	"final/network/RelayFinal/pkg/network"
+	"final/network/RelayFinal/pkg/relay/models"
 
 	//"encoding/base64"
 	"encoding/json"

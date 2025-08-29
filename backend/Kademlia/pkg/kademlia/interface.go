@@ -1,6 +1,6 @@
 package kademlia
 
-import "kademlia/pkg/types"
+import "final/backend/pkg/types"
 
 // Main Kademlia interface that network layer will use
 type Kademlia interface {

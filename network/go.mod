@@ -1,13 +1,18 @@
-module network
+module final/network
 
 go 1.24.3
 
+toolchain go1.24.4
+
 require (
+	final/backend v0.0.0-00010101000000-000000000000
 	github.com/joho/godotenv v1.5.1
 	github.com/libp2p/go-libp2p v0.43.0
 	github.com/multiformats/go-multiaddr v0.16.1
 	go.mongodb.org/mongo-driver v1.17.4
 )
+
+replace final/backend => ../backend/Kademlia
 
 require (
 	github.com/benbjohnson/clock v1.3.5 // indirect
@@ -20,12 +25,18 @@ require (
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/gorilla/websocket v1.5.3 // indirect
+	github.com/gorilla/websocket v1.5.3 // direct
+// ... rest of your indirect dependencies
+)
+
+require (
 	github.com/huin/goupnp v1.3.0 // indirect
 	github.com/ipfs/go-cid v0.5.0 // indirect
 	github.com/ipfs/go-log/v2 v2.6.0 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
 	github.com/jbenet/go-temp-err-catcher v0.1.0 // indirect
+	github.com/jinzhu/inflection v1.0.0 // indirect
+	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
 	github.com/koron/go-ssdp v0.0.6 // indirect
@@ -38,6 +49,7 @@ require (
 	github.com/libp2p/go-yamux/v5 v5.0.1 // indirect
 	github.com/marten-seemann/tcp v0.0.0-20210406111302-dfbc87cc63fd // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/mattn/go-sqlite3 v1.14.32 // indirect
 	github.com/miekg/dns v1.1.66 // indirect
 	github.com/mikioh/tcpinfo v0.0.0-20190314235526-30a79bb1804b // indirect
 	github.com/mikioh/tcpopt v0.0.0-20190314235656-172688c1accc // indirect
@@ -102,5 +114,7 @@ require (
 	golang.org/x/time v0.12.0 // indirect
 	golang.org/x/tools v0.34.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
+	gorm.io/driver/sqlite v1.6.0 // indirect
+	gorm.io/gorm v1.30.1 // indirect
 	lukechampine.com/blake3 v1.4.1 // indirect
 )

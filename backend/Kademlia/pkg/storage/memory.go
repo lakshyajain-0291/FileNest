@@ -3,7 +3,7 @@ package storage
 import (
     "sort"
     "sync"
-    "kademlia/pkg/embedding"
+    "final/backend/pkg/embedding"
 )
 
 type MemoryStorage struct {

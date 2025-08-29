@@ -2,8 +2,8 @@ package kademlia
 
 import (
 	"fmt"
-	"kademlia/pkg/helpers"
-	"kademlia/pkg/types"
+	"final/backend/pkg/helpers"
+	"final/backend/pkg/types"
 	"time"
 )
 

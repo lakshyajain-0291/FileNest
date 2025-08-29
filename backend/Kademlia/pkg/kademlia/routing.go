@@ -3,12 +3,15 @@ package kademlia
 import (
 	"bytes"
 	"fmt"
-	"kademlia/pkg/helpers"
-	"kademlia/pkg/types"
+	"final/backend/pkg/helpers"
+	"final/backend/pkg/types"
 	"sort"
 	"sync"
 )
-
+const (
+    NodeIDLength = 20   // 160 bits = 20 bytes
+    NodeIDBits   = 160  // Total bits in Kademlia key space
+)
 type RoutingTable struct {
 	SelfNodeID []byte // Persistent unique node ID (used for XOR)
 	SelfPeerID string // Ephemeral PeerID from libp2p
@@ -19,6 +22,9 @@ type RoutingTable struct {
 
 // NewRoutingTable initializes a new routing table
 func NewRoutingTable(selfNodeID []byte, selfPeerID string, k int) *RoutingTable {
+	if len(selfNodeID) != NodeIDLength {
+        panic(fmt.Sprintf("nodeID must be %d bytes, got %d", NodeIDLength, len(selfNodeID)))
+    }
 	numBuckets := len(selfNodeID) * 8
 	buckets := make([][]types.PeerInfo, numBuckets)
 	return &RoutingTable{

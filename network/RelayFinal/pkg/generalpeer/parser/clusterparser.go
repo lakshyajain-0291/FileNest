@@ -2,7 +2,7 @@ package parser
 
 import (
 	"encoding/json"
-	"network/pkg/generalpeer/models"
+	"final/network/RelayFinal/pkg/generalpeer/models"
 	"os"
 )
 

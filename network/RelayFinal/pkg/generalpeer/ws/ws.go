@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"network/pkg/generalpeer/models"
+	"final/network/RelayFinal/pkg/generalpeer/models"
 	"sync"
 
 	"github.com/gorilla/websocket"
