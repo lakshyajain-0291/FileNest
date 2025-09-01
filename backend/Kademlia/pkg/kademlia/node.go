@@ -3,31 +3,31 @@ package kademlia
 import (
 	"crypto/sha1"
 	"encoding/binary"
-	"fmt"
 	"final/backend/pkg/helpers"
 	"final/backend/pkg/storage"
 	"final/backend/pkg/types"
+	"fmt"
 	"math"
 	"sort"
 	"time"
 )
 
 type KademliaNode struct {
-// RoutingTable returns the node's routing table (exported getter)
-	NodeID       []byte // Persistent NodeID
-	PeerID       string // Ephemeral libp2p PeerID
-	routingTable *RoutingTable // stores nodeIDs which have contacted the Node before
+	// RoutingTable returns the node's routing table (exported getter)
+	NodeID       []byte            // Persistent NodeID
+	PeerID       string            // Ephemeral libp2p PeerID
+	routingTable *RoutingTable     // stores nodeIDs which have contacted the Node before
 	storage      storage.Interface // stores nodeIDs which match the TV of this node
 	network      NetworkInterface
 }
 
 func NewKademliaNode(nodeID []byte, peerID string, network NetworkInterface, dbPath string) (*KademliaNode, error) {
-// RoutingTable returns the node's routing table (exported getter)}
+	// RoutingTable returns the node's routing table (exported getter)}
 	// Initialize SQLite storage
 	// ADD THIS VALIDATION:
-    if len(nodeID) != 20 {
-        return nil, fmt.Errorf("nodeID must be 20 bytes (160 bits), got %d", len(nodeID))
-    }
+	if len(nodeID) != 20 {
+		return nil, fmt.Errorf("nodeID must be 20 bytes (160 bits), got %d", len(nodeID))
+	}
 
 	sqliteStorage, err := storage.NewSQLiteStorage(dbPath)
 	if err != nil {
@@ -46,13 +46,14 @@ func NewKademliaNode(nodeID []byte, peerID string, network NetworkInterface, dbP
 func (k *KademliaNode) RoutingTable() *RoutingTable {
 	return k.routingTable
 }
+
 // Storage wrapper functions - Add these to your node.go
 func (k *KademliaNode) StoreNodeEmbedding(nodeID []byte, embedding []float64) error {
-    return k.storage.StoreNodeEmbedding(nodeID, embedding)
+	return k.storage.StoreNodeEmbedding(nodeID, embedding)
 }
 
 func (k *KademliaNode) FindSimilar(queryEmbed []float64, threshold float64, limit int) ([]storage.EmbeddingResult, error) {
-    return k.storage.FindSimilar(queryEmbed, threshold, limit)
+	return k.storage.FindSimilar(queryEmbed, threshold, limit)
 }
 
 func (k *KademliaNode) GetID() []byte {
@@ -325,124 +326,124 @@ func (k *KademliaNode) hashEmbedding(embedding []float64) []byte {
 }
 
 func (k *KademliaNode) CompleteEmbeddingLookup(queryEmbed []float64) (*types.EmbeddingSearchResponse, error) {
-    fmt.Printf("=== Starting Complete Embedding Lookup ===\n")
+	fmt.Printf("=== Starting Complete Embedding Lookup ===\n")
 
-    // STEP 1: Use embedding search to find target NodeID
-    fmt.Printf("Step 1: Finding target NodeID using embedding similarity...\n")
+	// STEP 1: Use embedding search to find target NodeID
+	fmt.Printf("Step 1: Finding target NodeID using embedding similarity...\n")
 
-    // Use FindSimilar - get the best match from the list
-    closestNodes, err := k.FindSimilar(queryEmbed, 0.0, k.routingTable.K)
-    if err != nil {
-        return nil, fmt.Errorf("failed to find similar embeddings: %w", err)
-    }
+	// Use FindSimilar - get the best match from the list
+	closestNodes, err := k.FindSimilar(queryEmbed, 0.0, k.routingTable.K)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find similar embeddings: %w", err)
+	}
 
-    if len(closestNodes) == 0 {
-        return nil, fmt.Errorf("no similar embeddings found in local storage")
-    }
+	if len(closestNodes) == 0 {
+		return nil, fmt.Errorf("no similar embeddings found in local storage")
+	}
 
-    // Use the best match (first element)
-    targetNodeID := closestNodes[0].Key
-    fmt.Printf("Step 1 Complete: Target NodeID found: %x (similarity: %.3f)\n", 
-        targetNodeID[:8], closestNodes[0].Similarity)
+	// Use the best match (first element)
+	targetNodeID := closestNodes[0].Key
+	fmt.Printf("Step 1 Complete: Target NodeID found: %x (similarity: %.3f)\n",
+		targetNodeID[:8], closestNodes[0].Similarity)
 
-    // Rest of the function remains the same...
-    // STEP 2: Use iterative FIND_NODE to route to target
-    fmt.Printf("Step 2: Routing to target NodeID using Kademlia...\n")
+	// Rest of the function remains the same...
+	// STEP 2: Use iterative FIND_NODE to route to target
+	fmt.Printf("Step 2: Routing to target NodeID using Kademlia...\n")
 
-    lookupResponse, err := k.IterativeFindNode(targetNodeID)
-    if err != nil {
-        return nil, fmt.Errorf("failed to reach target node: %w", err)
-    }
+	lookupResponse, err := k.IterativeFindNode(targetNodeID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to reach target node: %w", err)
+	}
 
-    fmt.Printf("Step 2 Complete: Lookup finished\n")
+	fmt.Printf("Step 2 Complete: Lookup finished\n")
 
-    // STEP 3: Check if we actually reached the target
-    var finalResponse *types.EmbeddingSearchResponse
+	// STEP 3: Check if we actually reached the target
+	var finalResponse *types.EmbeddingSearchResponse
 
-    if string(lookupResponse.SenderNodeID) == string(targetNodeID) {
-        // We reached the target! It responds with the embedding
-        fmt.Printf("Step 3: Successfully reached target node!\n")
+	if string(lookupResponse.SenderNodeID) == string(targetNodeID) {
+		// We reached the target! It responds with the embedding
+		fmt.Printf("Step 3: Successfully reached target node!\n")
 
-        finalResponse = &types.EmbeddingSearchResponse{
-            QueryType:    "complete_lookup",
-            QueryEmbed:   queryEmbed,
-            Depth:        1,
-            SourceNodeID: targetNodeID,
-            SourcePeerID: lookupResponse.SenderPeerID,
-            NextNodeID:   targetNodeID,
-            Found:        true,
-            FileEmbed:    closestNodes[0].Embedding,
-        }
-    } else {
-        // We got close but didn't reach the exact target
-        fmt.Printf("Step 3: Reached closest available node\n")
+		finalResponse = &types.EmbeddingSearchResponse{
+			QueryType:    "complete_lookup",
+			QueryEmbed:   queryEmbed,
+			Depth:        1,
+			SourceNodeID: targetNodeID,
+			SourcePeerID: lookupResponse.SenderPeerID,
+			NextNodeID:   targetNodeID,
+			Found:        true,
+			FileEmbed:    closestNodes[0].Embedding,
+		}
+	} else {
+		// We got close but didn't reach the exact target
+		fmt.Printf("Step 3: Reached closest available node\n")
 
-        var nextNodeID []byte
-        if len(lookupResponse.ClosestNodes) > 0 {
-            nextNodeID = lookupResponse.ClosestNodes[0].NodeID
-        } else {
-            nextNodeID = lookupResponse.SenderNodeID
-        }
+		var nextNodeID []byte
+		if len(lookupResponse.ClosestNodes) > 0 {
+			nextNodeID = lookupResponse.ClosestNodes[0].NodeID
+		} else {
+			nextNodeID = lookupResponse.SenderNodeID
+		}
 
-        finalResponse = &types.EmbeddingSearchResponse{
-            QueryType:    "complete_lookup",
-            QueryEmbed:   queryEmbed,
-            Depth:        1,
-            SourceNodeID: lookupResponse.SenderNodeID,
-            SourcePeerID: lookupResponse.SenderPeerID,
-            NextNodeID:   nextNodeID,
-            Found:        false,
-            FileEmbed:    nil,
-        }
-    }
+		finalResponse = &types.EmbeddingSearchResponse{
+			QueryType:    "complete_lookup",
+			QueryEmbed:   queryEmbed,
+			Depth:        1,
+			SourceNodeID: lookupResponse.SenderNodeID,
+			SourcePeerID: lookupResponse.SenderPeerID,
+			NextNodeID:   nextNodeID,
+			Found:        false,
+			FileEmbed:    nil,
+		}
+	}
 
-    fmt.Printf("=== Complete Embedding Lookup Finished ===\n")
-    return finalResponse, nil
+	fmt.Printf("=== Complete Embedding Lookup Finished ===\n")
+	return finalResponse, nil
 }
 
 // HandleEmbeddingSearch processes incoming embedding search requests
 func (k *KademliaNode) HandleEmbeddingSearch(req *types.EmbeddingSearchRequest) (*types.EmbeddingSearchResponse, error) {
-    if req == nil {
-        return nil, fmt.Errorf("embedding search request cannot be nil")
-    }
-    
-    // Update routing table with source node
-    if len(req.SourceNodeID) > 0 {
-        sourcePeer := types.PeerInfo{
-            NodeID: req.SourceNodeID,
-            PeerID: req.SourcePeerID,
-        }
-        k.routingTable.Update(sourcePeer)
-    }
-    
-    // Find closest node embeddings from local database using FindSimilar
-    closestNodes, err := k.FindSimilar(req.QueryEmbed, req.Threshold, req.ResultsCount)
-    if err != nil {
-        return nil, fmt.Errorf("database search failed: %w", err)
-    }
-    
-    response := &types.EmbeddingSearchResponse{
-        QueryType:    req.QueryType,
-        QueryEmbed:   req.QueryEmbed,
-        Depth:        req.Depth + 1,
-        SourceNodeID: k.NodeID,
-        SourcePeerID: k.PeerID,
-        Found:        len(closestNodes) > 0,
-        NextNodeID:   nil,
-    }
-    
-    // If we found similar embeddings, return the best one
-    if len(closestNodes) > 0 {
-        response.FileEmbed = closestNodes[0].Embedding
-        response.NextNodeID = closestNodes[0].Key
-        return response, nil
-    }
-    
-    // If no nodes in database, try to find next node from routing table
-    nextPeer := k.findNextPeerForSearch(req.QueryEmbed, req.SourceNodeID)
-    if nextPeer != nil {
-        response.NextNodeID = nextPeer.NodeID
-    }
-    
-    return response, nil
+	if req == nil {
+		return nil, fmt.Errorf("embedding search request cannot be nil")
+	}
+
+	// Update routing table with source node
+	if len(req.SourceNodeID) > 0 {
+		sourcePeer := types.PeerInfo{
+			NodeID: req.SourceNodeID,
+			PeerID: req.SourcePeerID,
+		}
+		k.routingTable.Update(sourcePeer)
+	}
+
+	// Find closest node embeddings from local database using FindSimilar
+	closestNodes, err := k.FindSimilar(req.QueryEmbed, req.Threshold, req.ResultsCount)
+	if err != nil {
+		return nil, fmt.Errorf("database search failed: %w", err)
+	}
+
+	response := &types.EmbeddingSearchResponse{
+		QueryType:    req.QueryType,
+		QueryEmbed:   req.QueryEmbed,
+		Depth:        req.Depth + 1,
+		SourceNodeID: k.NodeID,
+		SourcePeerID: k.PeerID,
+		Found:        len(closestNodes) > 0,
+		NextNodeID:   nil,
+	}
+
+	// If we found similar embeddings, return the best one
+	if len(closestNodes) > 0 {
+		response.FileEmbed = closestNodes[0].Embedding
+		response.NextNodeID = closestNodes[0].Key
+		return response, nil
+	}
+
+	// If no nodes in database, try to find next node from routing table
+	nextPeer := k.findNextPeerForSearch(req.QueryEmbed, req.SourceNodeID)
+	if nextPeer != nil {
+		response.NextNodeID = nextPeer.NodeID
+	}
+
+	return response, nil
 }

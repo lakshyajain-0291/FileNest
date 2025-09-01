@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -23,7 +24,7 @@ import (
 	kadhelpers "final/backend/pkg/helpers"
 )
 
-type IDs struct{
+type IDs struct {
 	PeerID string
 	NodeID string
 }
@@ -106,8 +107,21 @@ func main() {
 			var bootstrapNodes []IDs
 
 			// Strategy 1: Use explicit bootstrap addresses if provided
-			nodeIDs := strings.Split(*nodeid, " ")
-			peerIDs := strings.Split(*pid, " ")
+			var nodeIDs []string
+			if *nodeid != "" {
+				nodeIDs = strings.Split(*nodeid, ",")
+			} else {
+				nodeIDs = []string{}
+			}
+			var peerIDs []string
+			if *pid != "" {
+				peerIDs = strings.Split(*nodeid, ",")
+			} else {
+				nodeIDs = []string{}
+			}
+			fmt.Println("nodeIDs: ", nodeIDs, " len = ", len(nodeIDs))
+			fmt.Println("peerIDs: ", peerIDs, " len = ", len(peerIDs))
+			// if *bootstrapAddrs != "" {
 			if len(nodeIDs) != len(peerIDs) {
 				log.Printf("Error: Number of node IDs and peer IDs must match.")
 			} else {

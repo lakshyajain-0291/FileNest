@@ -2,17 +2,12 @@ package integration
 
 import (
 	"bytes"
-	"context"
-	"crypto/rand"
-	"errors"
 	"final/backend/pkg/helpers"
 	"final/backend/pkg/identity"
 	"final/backend/pkg/kademlia"
 	"final/backend/pkg/types"
 	"fmt"
 	"log"
-	"math/big"
-	"strings"
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -405,49 +400,49 @@ func (nis *NetworkIntegrationService) ValidateEmbeddingRequest(request *types.Em
 
 // ========== HELPER FUNCTIONS ==========
 
-func ParseBootstrapAddr(addr string) (peer.AddrInfo, error) {
-	maddr, err := peer.AddrInfoFromString(addr)
-	if err != nil {
-		return peer.AddrInfo{}, errors.New("invalid bootstrap node multiaddr")
-	}
-	return *maddr, nil
-}
+// func ParseBootstrapAddr(addr string) (peer.AddrInfo, error) {
+// 	maddr, err := peer.AddrInfoFromString(addr)
+// 	if err != nil {
+// 		return peer.AddrInfo{}, errors.New("invalid bootstrap node multiaddr")
+// 	}
+// 	return *maddr, nil
+// }
 
-func XORDistance(a, b []byte) *big.Int {
-	if len(a) != len(b) {
-		panic("IDs must be the same length")
-	}
-	dist := make([]byte, len(a))
-	for i := range a {
-		dist[i] = a[i] ^ b[i]
-	}
-	return new(big.Int).SetBytes(dist)
-}
+// func XORDistance(a, b []byte) *big.Int {
+// 	if len(a) != len(b) {
+// 		panic("IDs must be the same length 3")
+// 	}
+// 	dist := make([]byte, len(a))
+// 	for i := range a {
+// 		dist[i] = a[i] ^ b[i]
+// 	}
+// 	return new(big.Int).SetBytes(dist)
+// }
 
-func BucketIndex(selfID, otherID []byte) int {
-	if len(selfID) != len(otherID) {
-		panic("IDs must be the same length")
-	}
-	for byteIndex := range selfID {
-		xorByte := selfID[byteIndex] ^ otherID[byteIndex]
-		if xorByte != 0 {
-			for bitPos := range 8 {
-				if (xorByte & (0x80 >> bitPos)) != 0 {
-					return (len(selfID)-byteIndex-1)*8 + (7 - bitPos)
-				}
-			}
-		}
-	}
-	return -1
-}
+// func BucketIndex(selfID, otherID []byte) int {
+// 	if len(selfID) != len(otherID) {
+// 		panic("IDs must be the same length 4")
+// 	}
+// 	for byteIndex := range selfID {
+// 		xorByte := selfID[byteIndex] ^ otherID[byteIndex]
+// 		if xorByte != 0 {
+// 			for bitPos := range 8 {
+// 				if (xorByte & (0x80 >> bitPos)) != 0 {
+// 					return (len(selfID)-byteIndex-1)*8 + (7 - bitPos)
+// 				}
+// 			}
+// 		}
+// 	}
+// 	return -1
+// }
 
-func RandomNodeID() []byte {
-	id := make([]byte, identity.NodeIDBytes)
-	if _, err := rand.Read(id); err != nil {
-		log.Fatalf("failed to generate random NodeID: %v", err)
-	}
-	return id
-}
+// func RandomNodeID() []byte {
+// 	id := make([]byte, identity.NodeIDBytes)
+// 	if _, err := rand.Read(id); err != nil {
+// 		log.Fatalf("failed to generate random NodeID: %v", err)
+// 	}
+// 	return id
+// }
 
 // AddPeerToRoutingTable adds a peer directly to the Kademlia routing table
 func (ckh *ComprehensiveKademliaHandler) AddPeerToRoutingTable(peer types.PeerInfo) error {
@@ -475,59 +470,59 @@ func (ckh *ComprehensiveKademliaHandler) AddPeerToRoutingTable(peer types.PeerIn
 }
 
 // BootstrapFromRelayNetwork bootstraps Kademlia using relay network peers
-func (ckh *ComprehensiveKademliaHandler) BootstrapFromRelayNetwork(ctx context.Context, relayAddrs []string) error {
-	if !ckh.isInitialized {
-		return fmt.Errorf("kademlia handler not initialized")
-	}
+// func (ckh *ComprehensiveKademliaHandler) BootstrapFromRelayNetwork(ctx context.Context, relayAddrs []string) error {
+// 	if !ckh.isInitialized {
+// 		return fmt.Errorf("kademlia handler not initialized")
+// 	}
 
-	successfulConnections := 0
+// 	successfulConnections := 0
 
-	for _, addr := range relayAddrs {
-		// Extract peer ID from multiaddr
-		parts := strings.Split(addr, "/")
-		if len(parts) < 2 {
-			log.Printf("Invalid multiaddr format: %s", addr)
-			continue
-		}
+// 	for _, addr := range relayAddrs {
+// 		// Extract peer ID from multiaddr
+// 		parts := strings.Split(addr, "/")
+// 		if len(parts) < 2 {
+// 			log.Printf("Invalid multiaddr format: %s", addr)
+// 			continue
+// 		}
 
-		peerIDStr := parts[len(parts)-1]
+// 		peerIDStr := parts[len(parts)-1]
 
-		// Convert to node ID
-		nodeID := helpers.HashNodeIDFromString(peerIDStr)
+// 		// Convert to node ID
+// 		nodeID := helpers.HashNodeIDFromString(peerIDStr)
 
-		// Create peer info
-		peerInfo := types.PeerInfo{
-			NodeID: nodeID,
-			PeerID: peerIDStr,
-		}
+// 		// Create peer info
+// 		peerInfo := types.PeerInfo{
+// 			NodeID: nodeID,
+// 			PeerID: peerIDStr,
+// 		}
 
-		// Add to routing table
-		err := ckh.AddPeerToRoutingTable(peerInfo)
-		if err != nil {
-			log.Printf("Failed to add relay peer %s: %v", peerIDStr[:12]+"...", err)
-			continue
-		}
+// 		// Add to routing table
+// 		err := ckh.AddPeerToRoutingTable(peerInfo)
+// 		if err != nil {
+// 			log.Printf("Failed to add relay peer %s: %v", peerIDStr[:12]+"...", err)
+// 			continue
+// 		}
 
-		successfulConnections++
-		log.Printf("✓ Added relay peer to Kademlia routing table: %s", peerIDStr[:12]+"...")
-	}
+// 		successfulConnections++
+// 		log.Printf("✓ Added relay peer to Kademlia routing table: %s", peerIDStr[:12]+"...")
+// 	}
 
-	if successfulConnections == 0 {
-		return fmt.Errorf("failed to bootstrap from any relay addresses")
-	}
+// 	if successfulConnections == 0 {
+// 		return fmt.Errorf("failed to bootstrap from any relay addresses")
+// 	}
 
-	// Perform iterative lookup to discover more peers
-	log.Println("🔍 Performing iterative lookup for peer discovery...")
-	_, err := ckh.IterativeFindNode(ckh.node.NodeID)
-	if err != nil {
-		log.Printf("Warning: Iterative lookup failed: %v", err)
-	} else {
-		log.Println("✓ Peer discovery completed")
-	}
+// 	// Perform iterative lookup to discover more peers
+// 	log.Println("🔍 Performing iterative lookup for peer discovery...")
+// 	_, err := ckh.IterativeFindNode(ckh.node.NodeID)
+// 	if err != nil {
+// 		log.Printf("Warning: Iterative lookup failed: %v", err)
+// 	} else {
+// 		log.Println("✓ Peer discovery completed")
+// 	}
 
-	log.Printf("✓ Bootstrap completed with %d relay peers added", successfulConnections)
-	return nil
-}
+// 	log.Printf("✓ Bootstrap completed with %d relay peers added", successfulConnections)
+// 	return nil
+// }
 
 // GetRoutingTableSize returns the number of peers in routing table
 // func (ckh *ComprehensiveKademliaHandler) GetRoutingTableSize() int {

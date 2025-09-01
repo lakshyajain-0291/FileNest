@@ -208,7 +208,7 @@ func ParseBootstrapAddr(addr string) (peer.AddrInfo, error) {
 
 func XORDistance(a, b []byte) *big.Int {
 	if len(a) != len(b) {
-		panic("IDs must be the same length")
+		panic("IDs must be the same length 1")
 	}
 
 	dist := make([]byte, len(a))
@@ -220,9 +220,9 @@ func XORDistance(a, b []byte) *big.Int {
 }
 
 func BucketIndex(selfID, otherID []byte) int {
-	if len(selfID) != len(otherID) {
-		panic("IDs must be the same length")
-	}
+	// if len(selfID) != len(otherID) {
+	// 	panic("IDs must be the same length 2")
+	// }
 
 	for byteIndex := range selfID {
 		xorByte := selfID[byteIndex] ^ otherID[byteIndex]
