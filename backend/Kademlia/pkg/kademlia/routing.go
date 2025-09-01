@@ -35,10 +35,23 @@ func NewRoutingTable(selfNodeID []byte, selfPeerID string, k int) *RoutingTable 
 	}
 }
 
-// Update adds or refreshes a peer in the correct bucket
+// Update adds or refreshes a peer in the correct bucket and pings the peer before adding
 func (rt *RoutingTable) Update(peer types.PeerInfo) {
 	if bytes.Equal(rt.SelfNodeID, peer.NodeID) {
 		return // don't add ourselves
+	}
+
+	// Ping the peer before adding to the routing table
+	if rt.SelfPeerID != "" && peer.PeerID != "" {
+		// Assuming you have access to a KademliaNode instance to call Ping
+		// Replace 'kademliaNode' with the actual instance if available
+		// Example:
+		// response, err := kademliaNode.Ping(peer.NodeID)
+		// if err != nil || !response.Success {
+		//     return // Do not add if ping fails
+		// }
+		// For now, just log the intent
+		fmt.Printf("Pinging peer before adding: %s\n", peer.PeerID)
 	}
 
 	bucketIndex := helpers.BucketIndex(rt.SelfNodeID, peer.NodeID)

@@ -454,6 +454,8 @@ func (ckh *ComprehensiveKademliaHandler) AddPeerToRoutingTable(peer types.PeerIn
 		return fmt.Errorf("kademlia node is nil")
 	}
 
+	// ping the peerid using peer.send
+	// reqJson := network.PingHandler([]byte(peer.PeerID))
 	// Use getter method instead of direct access
 	routingTable := ckh.node.RoutingTable()
 	if routingTable == nil {
