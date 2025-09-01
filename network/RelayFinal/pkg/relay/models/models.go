@@ -19,7 +19,7 @@ type ReqFormat struct {
 	Type      string          `json:"type,omitempty"`
 	PeerID    string          `json:"peerid,omitempty"`
 	ReqParams json.RawMessage `json:"reqparams,omitempty"`
-	Body      json.RawMessage `json:"body,omitempty"`
+	Body      []byte		  `json:"body,omitempty"`
 }
 
 type EmbeddingSearchRequest struct {

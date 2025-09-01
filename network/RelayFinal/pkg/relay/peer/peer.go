@@ -314,7 +314,7 @@ func handleDepthStream(s network.Stream) {
 		log.Printf("[DEBUG]ReqParams is : %+v \n", reqParams)
 
 		//GET method recv. from relay to peer
-		switch reqParams["type"] {
+		switch reqParams["Type"] {
 			case "GET":
 				log.Printf("Serving GET Req")
 				resp := ServeGetReq(reqStruct.ReqParams)
@@ -331,14 +331,6 @@ func handleDepthStream(s network.Stream) {
 				_, err = s.Write(resp)
 				if err != nil {
 					log.Println("[DEBUG]Error writing resp bytes to relay stream")
-					return
-				}
-			case "SEND":
-				resp := ServePostReq(reqStruct.ReqParams, reqStruct.Body)
-				resp = bytes.TrimRight(resp,"\x00")
-				_, err = s.Write(resp)
-				if err != nil {
-					log.Println("[DEBUG]Error writing resp bytes to relay stream in SEND")
 					return
 				}
 		}

@@ -123,7 +123,7 @@ func ServeGetReq(paramsBytes []byte) []byte {
 	fmt.Println("[DEBUG][ServeGetReq] Parsed params:", params)
 
 
-	switch params["route"] {
+	switch params["Route"] {
 	case "find_value":
 		fmt.Println("[DEBUG][ServeGetReq] Handling route: find_value")
 		return network.FindValueHandler(params)
@@ -141,21 +141,19 @@ func ServeGetReq(paramsBytes []byte) []byte {
 }
 
 func ServePostReq(paramsBytes []byte, bodyBytes []byte) []byte {
-	fmt.Println("[DEBUG][ServePostReq] Received params:", string(paramsBytes), " body:", string(bodyBytes))
 
 	var params map[string]any
 	err := json.Unmarshal(paramsBytes, &params)
 	if err != nil {
 		fmt.Println("[ERROR][ServePostReq] Failed to unmarshal params:", err)
 	}
-	fmt.Println("[DEBUG][ServePostReq] Parsed params:", params)
 
-	switch params["route"] {
+	switch params["Route"] {
 	case "store":
 		fmt.Println("[DEBUG][ServePostReq] Handling route: store")
 		return network.StoreHandler()
 		
-	case "send":
+	case "ftp":
 		fmt.Println("[DEBUG][ServeSendReq] Received params:", string(paramsBytes), " body:", string(bodyBytes))
 		
 		var params map[string]any
