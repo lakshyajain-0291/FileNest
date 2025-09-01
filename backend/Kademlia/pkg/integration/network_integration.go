@@ -11,7 +11,6 @@ import (
 	"final/backend/pkg/types"
 	"fmt"
 	"log"
-	"math"
 	"math/big"
 	"strings"
 	"time"
@@ -29,32 +28,6 @@ func NewLocalEmbeddingProcessor() *LocalEmbeddingProcessor {
 	return &LocalEmbeddingProcessor{
 		EmbeddingProcessor: &helpers.EmbeddingProcessor{},
 	}
-}
-
-// CosineSimilarity method added to local wrapper
-func (ep *LocalEmbeddingProcessor) CosineSimilarity(a, b []float64) (float64, error) {
-	if len(a) != len(b) {
-		return 0, fmt.Errorf("embedding dimensions don't match: %d != %d", len(a), len(b))
-	}
-
-	if len(a) == 0 {
-		return 0, fmt.Errorf("empty embedding vectors")
-	}
-
-	var dotProduct, normA, normB float64
-
-	for i := range a {
-		dotProduct += a[i] * b[i]
-		normA += a[i] * a[i]
-		normB += b[i] * b[i]
-	}
-
-	if normA == 0 || normB == 0 {
-		return 0.0, nil
-	}
-
-	similarity := dotProduct / (math.Sqrt(normA) * math.Sqrt(normB))
-	return similarity, nil
 }
 
 // NetworkIntegrationService handles network layer integration with Kademlia DHT
@@ -226,7 +199,10 @@ func (ckh *ComprehensiveKademliaHandler) InitializeNode(nodeIDSeed, peerID, dbPa
 	}
 
 	// ✅ Convert ONCE at initialization
-	nodeID := helpers.HashNodeIDFromString(nodeIDSeed)
+	nodeID, err := identity.LoadOrCreateNodeID(nodeIDSeed)
+	if err != nil {
+		return fmt.Errorf("failed to load or create node ID: %w", err)
+	}
 
 	var network kademlia.NetworkInterface
 

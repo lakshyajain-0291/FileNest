@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -24,13 +23,19 @@ import (
 	kadhelpers "final/backend/pkg/helpers"
 )
 
+type IDs struct{
+	PeerID string
+	NodeID string
+}
+
 func main() {
 	var mlChan chan genmodels.ClusterWrapper
 
 	// Define flags
 	sendReq := flag.Bool("sendreq", false, "Whether to send request to target peer")
 	pid := flag.String("pid", "", "Target peer ID to send request to (used only if sendreq=true)")
-	useKademlia := flag.Bool("kademlia", false, "Use Kademlia for embedding search")
+	nodeid := flag.String("nodeid", "", "Node ID for this peer")
+	useKademlia := flag.Bool("kademlia", true, "Use Kademlia for embedding search")
 	bootstrapAddrs := flag.String("bootstrap", "", "Comma-separated bootstrap node addresses")
 	flag.Parse()
 
@@ -88,7 +93,7 @@ func main() {
 
 		// Use the actual Host ID from your DepthPeer
 		err = kademliaHandler.InitializeNode(
-			"relay-node-"+time.Now().String(),
+			"nodeid.db",
 			p.Host.ID().String(),
 			"./kademlia_relay.db",
 		)
@@ -99,17 +104,26 @@ func main() {
 			log.Println("✓ Kademlia integration initialized")
 
 			// BOOTSTRAP LOGIC - Multiple strategies
-			var bootstrapNodes []string
+			var bootstrapNodes []IDs
 
 			// Strategy 1: Use explicit bootstrap addresses if provided
 			if *bootstrapAddrs != "" {
-				bootstrapNodes = strings.Split(*bootstrapAddrs, ",")
+				bootstrapNodes = []IDs{}
+				addrs := strings.Split(*bootstrapAddrs, ",")
+				for _, addr := range addrs {
+					// For each bootstrap address, use the address as PeerID and the local nodeid flag as NodeID
+					bootstrapNodes = append(bootstrapNodes, IDs{
+						PeerID: addr,      // Each address is a PeerID
+						NodeID: *nodeid,   // Local node's NodeID from flag
+					})
+				}
 				log.Printf("🔄 Using explicit bootstrap nodes: %v", bootstrapNodes)
-			} else {
-				// Strategy 2: Use relay addresses as bootstrap nodes
-				bootstrapNodes = relayAddrs
-				log.Printf("🔄 Using relay addresses as bootstrap nodes: %v", bootstrapNodes)
 			}
+			// } else {
+			// 	// Strategy 2: Use relay addresses as bootstrap nodes
+			// 	bootstrapNodes = relayAddrs
+			// 	log.Printf("🔄 Using relay addresses as bootstrap nodes: %v", bootstrapNodes)
+			// }
 
 			// Perform bootstrap
 			if len(bootstrapNodes) > 0 {
@@ -117,7 +131,7 @@ func main() {
 				successCount := 0
 
 				for _, addr := range bootstrapNodes {
-					err := bootstrapFromAddress(kademliaHandler, addr)
+					err := bootstrapFromAddress(kademliaHandler, addr.PeerID, []byte(addr.NodeID))
 					if err != nil {
 						log.Printf("❌ Bootstrap failed for %s: %v", addr, err)
 					} else {
@@ -131,14 +145,14 @@ func main() {
 						successCount, len(bootstrapNodes))
 
 					// Perform iterative lookup to discover more peers
-					log.Println("🔍 Performing peer discovery...")
-					_, err := kademliaHandler.IterativeFindNode(
-						kadhelpers.HashNodeIDFromString(p.Host.ID().String()))
-					if err != nil {
-						log.Printf("Warning: Peer discovery failed: %v", err)
-					} else {
-						log.Println("✓ Peer discovery completed")
-					}
+					// log.Println("🔍 Performing peer discovery...")
+					// _, err := kademliaHandler.IterativeFindNode(
+					// 	kadhelpers.HashNodeIDFromString(p.Host.ID().String()))
+					// if err != nil {
+					// 	log.Printf("Warning: Peer discovery failed: %v", err)
+					// } else {
+					// 	log.Println("✓ Peer discovery completed")
+					// }
 				} else {
 					log.Println("⚠️  Bootstrap failed for all nodes - running in isolated mode")
 				}
@@ -289,7 +303,7 @@ func main() {
 		// Send request
 		jsonParams, _ := json.Marshal(params)
 		bodyJson, _ := json.Marshal(requestBody)
-
+		log.Println("bodyJson created successfully. ")
 		resp, err := peer.Send(p, ctx, *pid, jsonParams, bodyJson)
 		if err != nil {
 			log.Printf("Error sending request: %v", err)
@@ -309,15 +323,11 @@ func main() {
 }
 
 // Helper function to bootstrap from a single address
-func bootstrapFromAddress(handler *integration.ComprehensiveKademliaHandler, addr string) error {
+func bootstrapFromAddress(handler *integration.ComprehensiveKademliaHandler, addr string, NodeID []byte) error {
 	// Extract peer ID from multiaddr
-	parts := strings.Split(addr, "/")
-	if len(parts) < 2 {
-		return fmt.Errorf("invalid multiaddr format: %s", addr)
-	}
 
-	peerIDStr := parts[len(parts)-1]
-	nodeID := kadhelpers.HashNodeIDFromString(peerIDStr)
+	peerIDStr := addr
+	nodeID := NodeID
 
 	// Add to routing table
 	peerInfo := types.PeerInfo{

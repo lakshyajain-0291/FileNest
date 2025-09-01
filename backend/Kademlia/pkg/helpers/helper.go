@@ -1,17 +1,15 @@
 package helpers
 
 import (
-	"crypto/rand"
 	"errors"
 	"fmt"
-	"final/backend/pkg/identity"
-	"log"
 	"math"
 	"math/big"
 	"sync"
 
 	"github.com/libp2p/go-libp2p/core/peer"
 )
+
 // EmbeddingProcessor handles cosine similarity calculations for preprocessed embeddings
 type EmbeddingProcessor struct {
 	// Cache for storing similarity calculations to avoid recomputation
@@ -240,10 +238,10 @@ func BucketIndex(selfID, otherID []byte) int {
 	return -1
 }
 
-func RandomNodeID() []byte {
-	id := make([]byte, identity.NodeIDBytes)
-	if _, err := rand.Read(id); err != nil {
-		log.Fatalf("failed to generate random NodeID: %v", err)
-	}
-	return id
-}
+// func RandomNodeID() []byte {
+// 	id := make([]byte, identity.NodeIDBytes)
+// 	if _, err := rand.Read(id); err != nil {
+// 		log.Fatalf("failed to generate random NodeID: %v", err)
+// 	}
+// 	return id
+// }
