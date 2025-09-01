@@ -33,10 +33,9 @@ func main() {
 
 	// Define flags
 	sendReq := flag.Bool("sendreq", false, "Whether to send request to target peer")
-	pid := flag.String("pid", "", "Target peer ID to send request to (used only if sendreq=true)")
-	nodeid := flag.String("nodeid", "", "Node ID for this peer")
+	pid := flag.String("pid", "", "Target peer ID to send request to (used only if sendreq=true), should be comma sep")
+	nodeid := flag.String("nodeid", "", "Node ID for this peer, should be comma sep")
 	useKademlia := flag.Bool("kademlia", true, "Use Kademlia for embedding search")
-	bootstrapAddrs := flag.String("bootstrap", "", "Comma-separated bootstrap node addresses")
 	flag.Parse()
 
 	peerTransport := ws.NewWebSocketTransport(":8080")
@@ -107,14 +106,15 @@ func main() {
 			var bootstrapNodes []IDs
 
 			// Strategy 1: Use explicit bootstrap addresses if provided
-			if *bootstrapAddrs != "" {
-				bootstrapNodes = []IDs{}
-				addrs := strings.Split(*bootstrapAddrs, ",")
-				for _, addr := range addrs {
-					// For each bootstrap address, use the address as PeerID and the local nodeid flag as NodeID
+			nodeIDs := strings.Split(*nodeid, " ")
+			peerIDs := strings.Split(*pid, " ")
+			if len(nodeIDs) != len(peerIDs) {
+				log.Printf("Error: Number of node IDs and peer IDs must match.")
+			} else {
+				for i := range nodeIDs {
 					bootstrapNodes = append(bootstrapNodes, IDs{
-						PeerID: addr,      // Each address is a PeerID
-						NodeID: *nodeid,   // Local node's NodeID from flag
+						PeerID: peerIDs[i],
+						NodeID: nodeIDs[i],
 					})
 				}
 				log.Printf("🔄 Using explicit bootstrap nodes: %v", bootstrapNodes)
