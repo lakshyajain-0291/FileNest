@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -311,12 +310,13 @@ func main() {
 // Helper function to bootstrap from a single address
 func bootstrapFromAddress(handler *integration.ComprehensiveKademliaHandler, addr string) error {
 	// Extract peer ID from multiaddr
-	parts := strings.Split(addr, "/")
-	if len(parts) < 2 {
-		return fmt.Errorf("invalid multiaddr format: %s", addr)
-	}
+	// parts := strings.Split(addr, "/")
+	// log.Printf	("%+v", parts)
+	// if len(parts) < 2 {
+	// 	return fmt.Errorf("invalid multiaddr format: %s", addr)
+	// }
 
-	peerIDStr := parts[len(parts)-1]
+	peerIDStr := addr
 	nodeID := kadhelpers.HashNodeIDFromString(peerIDStr)
 
 	// Add to routing table

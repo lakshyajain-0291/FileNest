@@ -1,9 +1,9 @@
 package kademlia
 
 import (
-	"fmt"
 	"final/backend/pkg/helpers"
 	"final/backend/pkg/types"
+	"fmt"
 	"time"
 )
 
@@ -79,23 +79,6 @@ func (k *KademliaNode) EmbeddingSearch(req *types.EmbeddingSearchRequest) (*type
 	}
 
 	return response, nil
-}
-
-// Helper functions
-func (k *KademliaNode) findNextNodeForSearch(queryEmbed []float64, excludeNodeID []byte) *types.PeerInfo {
-	allNodes := k.routingTable.GetNodes()
-
-	for _, node := range allNodes {
-		// Skip the source node
-		if string(node.NodeID) == string(excludeNodeID) {
-			continue
-		}
-
-		// Return first available node (you can enhance this logic)
-		return &node
-	}
-
-	return nil
 }
 
 // IterativeFindNode performs iterative lookup to find and reach target NodeID
