@@ -165,7 +165,7 @@ func ServePostReq(paramsBytes []byte, bodyBytes []byte) []byte {
 		}
 		fmt.Println("[DEBUG][ServeSendReq] Parsed params:", params)
 		
-		return network.PostHandler(params,bodyBytes)
+		return network.SendHandler(params,bodyBytes)
 
 	default:
 		fmt.Println("[WARN][ServePostReq] Unknown POST route:", params["route"])
