@@ -2,8 +2,8 @@ package network
 
 import (
 	"encoding/json"
-	"log"
 	_ "final/network/RelayFinal/pkg/relay/models"
+	"log"
 )
 
 func FindValueHandler(params map[string]any) []byte{
@@ -23,7 +23,6 @@ func PingHandler(params map[string]any) []byte{
 }
 
 func StoreHandler() []byte{
-
 	var resp []byte
 	return resp
 }

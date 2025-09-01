@@ -154,6 +154,18 @@ func ServePostReq(paramsBytes []byte, bodyBytes []byte) []byte {
 	case "store":
 		fmt.Println("[DEBUG][ServePostReq] Handling route: store")
 		return network.StoreHandler()
+		
+	case "send":
+		fmt.Println("[DEBUG][ServeSendReq] Received params:", string(paramsBytes), " body:", string(bodyBytes))
+		
+		var params map[string]any
+		err := json.Unmarshal(paramsBytes, &params)
+		if err != nil {
+			fmt.Println("[ERROR][ServeSendReq] Failed to unmarshal params:", err)
+		}
+		fmt.Println("[DEBUG][ServeSendReq] Parsed params:", params)
+		
+		return network.PostHandler(params,bodyBytes)
 
 	default:
 		fmt.Println("[WARN][ServePostReq] Unknown POST route:", params["route"])
@@ -162,3 +174,4 @@ func ServePostReq(paramsBytes []byte, bodyBytes []byte) []byte {
 	var resp []byte
 	return resp
 }
+
