@@ -159,10 +159,10 @@ func main() {
 						successCount, len(bootstrapNodes))
 
 					// ping the bootstrapped nodes.
-					for _, peerid := range peerIDs{
+					for _, peerid := range peerIDs {
 						pingPeer(p, ctx, peerid)
 					}
-					
+
 					// Perform iterative lookup to discover more peers
 					// log.Println("🔍 Performing peer discovery...")
 					// _, err := kademliaHandler.IterativeFindNode(
@@ -179,7 +179,7 @@ func main() {
 
 			// Add target peer to routing table if provided
 			if *sendReq && *pid != "" {
-				
+
 				err := addTargetPeerToRoutingTable(kademliaHandler, *pid)
 				if err != nil {
 					log.Printf("Failed to add target peer: %v", err)
@@ -372,17 +372,19 @@ func addTargetPeerToRoutingTable(handler *integration.ComprehensiveKademliaHandl
 // Example usage of peer.Send to ping a given PeerID
 func pingPeer(p *models.UserPeer, ctx context.Context, pid string) error {
 	params := models.PingRequest{
-			Type:           "GET",
-			Route:          "ping",
-			ReceiverPeerID: pid,
-			Timestamp:      time.Now().Unix(),
+		Type:           "GET",
+		Route:          "ping",
+		ReceiverPeerID: pid,
+		Timestamp:      time.Now().Unix(),
 	}
 
 	paramsJson, _ := json.Marshal(params)
 	bodyJson, _ := json.Marshal(map[string]interface{}{})
 	resp, err := peer.Send(p, ctx, pid, paramsJson, bodyJson)
+	log.Printf("ping is failing")
 	if err != nil {
-		log.Printf("Ping failed for peer %s: %v", pid, err)
+		log.Printf("Ping failed for peer %s: %v", pid, err.Error())
+
 		return err
 	}
 	log.Printf("Ping response from peer %s: %s", pid, string(resp))
