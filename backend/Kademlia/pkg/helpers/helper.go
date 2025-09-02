@@ -3,6 +3,7 @@ package helpers
 import (
 	"errors"
 	"fmt"
+	"log"
 	"math"
 	"math/big"
 	"sync"
@@ -207,8 +208,12 @@ func ParseBootstrapAddr(addr string) (peer.AddrInfo, error) {
 }
 
 func XORDistance(a, b []byte) *big.Int {
+	var sa, sb string
+	sa = string(a)
+	sb = string(b)
 	if len(a) != len(b) {
-		panic("IDs must be the same length 1")
+		log.Printf("Error. Lengths are %v for %v, %v for %v", len(a),sa, len(b),sb)
+		panic("")
 	}
 
 	dist := make([]byte, len(a))

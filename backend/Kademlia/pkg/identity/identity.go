@@ -2,7 +2,9 @@ package identity
 
 import (
 	"crypto/rand"
+	"encoding/hex"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 )
@@ -50,5 +52,9 @@ func LoadOrCreateNodeID(filePath string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to save nodeid: %w", err)
 	}
 
+	hexID := hex.EncodeToString(nodeID)
+    fmt.Println("NodeID (hex):", hexID)
+
+	log.Printf("LoadOrCreateNodeID len: %+v", len(nodeID))
 	return nodeID, nil
 }

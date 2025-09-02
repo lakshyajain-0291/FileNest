@@ -2,9 +2,10 @@ package kademlia
 
 import (
 	"bytes"
-	"fmt"
 	"final/backend/pkg/helpers"
 	"final/backend/pkg/types"
+	"fmt"
+	"log"
 	"sort"
 	"sync"
 )
@@ -22,9 +23,12 @@ type RoutingTable struct {
 
 // NewRoutingTable initializes a new routing table
 func NewRoutingTable(selfNodeID []byte, selfPeerID string, k int) *RoutingTable {
+	log.Printf("NewRoutingTable: len NID: %v", len(selfNodeID)) // 20 hai idhar
+
 	if len(selfNodeID) != NodeIDLength {
         panic(fmt.Sprintf("nodeID must be %d bytes, got %d", NodeIDLength, len(selfNodeID)))
     }
+	
 	numBuckets := len(selfNodeID) * 8
 	buckets := make([][]types.PeerInfo, numBuckets)
 	return &RoutingTable{
@@ -38,7 +42,7 @@ func NewRoutingTable(selfNodeID []byte, selfPeerID string, k int) *RoutingTable 
 // Update adds or refreshes a peer in the correct bucket and pings the peer before adding
 func (rt *RoutingTable) Update(peer types.PeerInfo) {
 	if bytes.Equal(rt.SelfNodeID, peer.NodeID) {
-		return // don't add ourselves
+		return // don't add own peer
 	}
 
 	// Ping the peer before adding to the routing table
@@ -54,6 +58,7 @@ func (rt *RoutingTable) Update(peer types.PeerInfo) {
 		fmt.Printf("Pinging peer before adding: %s\n", peer.PeerID)
 	}
 
+	log.Printf("routing.go: selfNID: %v peer NID: %v",len(rt.SelfNodeID), len(peer.NodeID) )
 	bucketIndex := helpers.BucketIndex(rt.SelfNodeID, peer.NodeID)
 	if bucketIndex < 0 || bucketIndex >= len(rt.Buckets) {
 		return // invalid bucket index

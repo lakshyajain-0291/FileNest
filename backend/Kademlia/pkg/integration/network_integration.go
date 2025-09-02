@@ -188,19 +188,19 @@ func NewComprehensiveKademliaHandler() *ComprehensiveKademliaHandler {
 }
 
 // InitializeNode - Initialize Kademlia node
-func (ckh *ComprehensiveKademliaHandler) InitializeNode(nodeIDSeed, peerID, dbPath string) error {
+func (ckh *ComprehensiveKademliaHandler) InitializeNode(nodeIDdb, peerID, dbPath string) error {
 	if ckh.isInitialized {
 		return nil
 	}
 
 	// ✅ Convert ONCE at initialization
-	nodeID, err := identity.LoadOrCreateNodeID(nodeIDSeed)
+	nodeID, err := identity.LoadOrCreateNodeID(nodeIDdb)
 	if err != nil {
 		return fmt.Errorf("failed to load or create node ID: %w", err)
 	}
 
 	var network kademlia.NetworkInterface
-
+	log.Printf("netowrk intregragion, nodeLen %v", len(nodeID))
 	node, err := kademlia.NewKademliaNode(nodeID, peerID, network, dbPath)
 	if err != nil {
 		return fmt.Errorf("failed to create Kademlia node: %w", err)
@@ -272,10 +272,12 @@ func (ckh *ComprehensiveKademliaHandler) HandleIncomingPing(request *types.PingR
 }
 
 // StoreEmbedding - Store an embedding using []byte node ID
-func (ckh *ComprehensiveKademliaHandler) StoreEmbedding(targetNodeID []byte, embedding []float64) error { // ✅ []byte parameter
+func (ckh *ComprehensiveKademliaHandler) StoreEmbedding(targetNodeID []byte, embedding []float64) error {
 	if !ckh.isInitialized {
 		return fmt.Errorf("node not initialized")
 	}
+
+	log.Printf("[StoreEmbedding] NodeID length: %d", len(ckh.node.GetID()))
 
 	// ✅ Direct use - no conversion
 	return ckh.node.StoreNodeEmbedding(targetNodeID, embedding)
@@ -287,14 +289,18 @@ func (ckh *ComprehensiveKademliaHandler) CompleteEmbeddingLookup(queryEmbed []fl
 		return nil, fmt.Errorf("node not initialized")
 	}
 
+	log.Printf("[CompleteEmbeddingLookup] NodeID length: %d", len(ckh.node.GetID()))
+
 	return ckh.node.CompleteEmbeddingLookup(queryEmbed)
 }
 
 // IterativeFindNode - Perform iterative find node lookup using []byte
-func (ckh *ComprehensiveKademliaHandler) IterativeFindNode(targetNodeID []byte) (*types.FindNodeResponse, error) { // ✅ []byte parameter
+func (ckh *ComprehensiveKademliaHandler) IterativeFindNode(targetNodeID []byte) (*types.FindNodeResponse, error) {
 	if !ckh.isInitialized {
 		return nil, fmt.Errorf("node not initialized")
 	}
+
+	log.Printf("[IterativeFindNode] NodeID length: %d", len(ckh.node.GetID()))
 
 	// ✅ Direct use - no conversion
 	return ckh.node.IterativeFindNode(targetNodeID)
@@ -308,15 +314,45 @@ func (ckh *ComprehensiveKademliaHandler) GetNodeStatistics() map[string]interfac
 			"error":       "node not initialized",
 		}
 	}
+	log.Printf("[GetNodeStatistics] NodeID: %v", string(ckh.node.GetID()))
+	log.Printf("[GetNodeStatistics] NodeID length: %d", len(ckh.node.GetID()))
 
 	rt := ckh.node.RoutingTable()
-	return map[string]interface{}{
-		"node_id":       fmt.Sprintf("%x", ckh.node.GetID()[:8]),
+	stats := map[string]interface{}{
+		"node_id":       fmt.Sprintf("%x", ckh.node.GetID()), // !!! was an [:8] here.
 		"peer_id":       ckh.node.GetAddress(),
 		"routing_peers": len(rt.FindClosest(ckh.node.GetID(), rt.K)),
 		"initialized":   ckh.isInitialized,
 		"timestamp":     time.Now().Unix(),
 	}
+	log.Printf("Node Stats: %+v", stats)
+	return stats
+}
+
+// AddPeerToRoutingTable adds a peer directly to the Kademlia routing table
+func (ckh *ComprehensiveKademliaHandler) AddPeerToRoutingTable(peer types.PeerInfo) error {
+	if !ckh.isInitialized {
+		return fmt.Errorf("kademlia handler not initialized")
+	}
+
+	if ckh.node == nil {
+		return fmt.Errorf("kademlia node is nil")
+	}
+
+	log.Printf("[AddPeerToRoutingTable] NodeID length: %d", len(ckh.node.GetID()))
+
+	routingTable := ckh.node.RoutingTable()
+	if routingTable == nil {
+		return fmt.Errorf("routing table is nil")
+	}
+
+	// Call Update method
+	routingTable.Update(peer)
+
+	log.Printf("Added peer to routing table: NodeID=%x, PeerID=%s",
+		peer.NodeID, peer.PeerID)
+
+	return nil
 }
 
 // GetRoutingInfo - Get routing table information
@@ -445,31 +481,31 @@ func (nis *NetworkIntegrationService) ValidateEmbeddingRequest(request *types.Em
 // }
 
 // AddPeerToRoutingTable adds a peer directly to the Kademlia routing table
-func (ckh *ComprehensiveKademliaHandler) AddPeerToRoutingTable(peer types.PeerInfo) error {
-	if !ckh.isInitialized {
-		return fmt.Errorf("kademlia handler not initialized")
-	}
+// func (ckh *ComprehensiveKademliaHandler) AddPeerToRoutingTable(peer types.PeerInfo) error {
+// 	if !ckh.isInitialized {
+// 		return fmt.Errorf("kademlia handler not initialized")
+// 	}
 
-	if ckh.node == nil {
-		return fmt.Errorf("kademlia node is nil")
-	}
+// 	if ckh.node == nil {
+// 		return fmt.Errorf("kademlia node is nil")
+// 	}
 
-	// ping the peerid using peer.send
-	// reqJson := network.PingHandler([]byte(peer.PeerID))
-	// Use getter method instead of direct access
-	routingTable := ckh.node.RoutingTable()
-	if routingTable == nil {
-		return fmt.Errorf("routing table is nil")
-	}
+// 	// ping the peerid using peer.send
+// 	// reqJson := network.PingHandler([]byte(peer.PeerID))
+// 	// Use getter method instead of direct access
+// 	routingTable := ckh.node.RoutingTable()
+// 	if routingTable == nil {
+// 		return fmt.Errorf("routing table is nil")
+// 	}
 
-	// Call Update method
-	routingTable.Update(peer)
+// 	// Call Update method
+// 	routingTable.Update(peer)
 
-	log.Printf("Added peer to routing table: NodeID=%x, PeerID=%s",
-		peer.NodeID[:8], peer.PeerID[:12]+"...")
+// 	log.Printf("Added peer to routing table: NodeID=%x, PeerID=%s",
+// 		peer.NodeID, peer.PeerID)
 
-	return nil
-}
+// 	return nil
+// }
 
 // BootstrapFromRelayNetwork bootstraps Kademlia using relay network peers
 // func (ckh *ComprehensiveKademliaHandler) BootstrapFromRelayNetwork(ctx context.Context, relayAddrs []string) error {
