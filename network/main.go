@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	genmodels "final/network/RelayFinal/pkg/generalpeer/models"
@@ -14,7 +15,8 @@ import (
 	"log"
 	"time"
 
-	"final/backend/pkg/identity"
+	_ "github.com/mattn/go-sqlite3"
+
 	"final/backend/pkg/integration"
 	"final/backend/pkg/types"
 )
@@ -24,7 +26,6 @@ func main() {
 	sendReq := flag.Bool("sendreq", false, "Whether to send request to target peer")
 	pid := flag.String("pid", "", "Target peer ID to send request to (comma sep)")
 	nodeidHex := flag.String("nodeid", "", "Node ID for this peer (hex, comma sep)")
-	useKademlia := flag.Bool("kademlia", true, "Use Kademlia for embedding search")
 	flag.Parse()
 
 	// ---- Decode nodeid ----
@@ -79,21 +80,26 @@ func main() {
 	}
 
 	// ---- Kademlia Integration ----
-	var kademliaHandler *integration.ComprehensiveKademliaHandler
-	if *useKademlia {
-		kademliaHandler = integration.NewComprehensiveKademliaHandler()
+	// var kademliaHandler *integration.ComprehensiveKademliaHandler
 
-		log.Printf("PID of node is %v", p.Host.ID().String())
-		err = kademliaHandler.InitializeNode(
-			p.Host.ID().String(),
-			"./kademlia_relay.db",
-		)
-		if err != nil {
-			log.Printf("Failed to initialize Kademlia: %v", err)
+	kademliaHandler := integration.NewComprehensiveKademliaHandler()
+
+	log.Printf("PID of node is %v", p.Host.ID().String())
+
+	// node initialization and bootstrap
+	err = kademliaHandler.InitializeNode(
+		p.Host.ID().String(),
+		"./nodeid_embedding_map.db",
+	)
+	if err != nil {
+		log.Printf("Failed to initialize Kademlia: %v", err)
+	} else {
+		log.Println("✓ Kademlia integration initialized")
+
+		// ---- Bootstrap ---- only to be done when nodeid and pid provided
+		if *nodeidHex == "" || *pid == "" {
+			log.Println("No bootstrap nodes provided, skipping bootstrap")
 		} else {
-			log.Println("✓ Kademlia integration initialized")
-
-			// ---- Bootstrap ----
 			bootstrapNodes, err := helpers.ParseBootstrapFlags(*nodeidHex, *pid)
 			if err != nil {
 				log.Printf("Error: %v", err)
@@ -120,7 +126,7 @@ func main() {
 
 					// Ping bootstrap peers
 					for _, addr := range bootstrapNodes {
-						if err := pingPeer(p, ctx, addr.PeerID); err != nil {
+						if err := pingPeer(p, ctx, addr.NodeID); err != nil {
 							log.Printf("pingPeer err: %v", err.Error())
 						}
 					}
@@ -128,25 +134,30 @@ func main() {
 					log.Println("⚠️  Bootstrap failed for all nodes - running in isolated mode")
 				}
 			}
-
-			// ---- Add target peer ----
-			if *sendReq && *pid != "" && len(nodeidBytes) > 0 {
-				if err := addPeerToRoutingTable(kademliaHandler, *pid, nodeidBytes); err != nil {
-					log.Printf("Failed to add target peer: %v", err)
-				} else {
-					log.Printf("✓ Added target peer to routing table: %s", *pid)
-				}
-			}
-
-			// ---- Store test embeddings ----
-			storeTestEmbeddings(kademliaHandler, nodeidBytes)
-
-			// ---- Print routing stats ----
-			stats := kademliaHandler.GetNodeStatistics()
-			routingInfo := kademliaHandler.GetRoutingInfo()
-			log.Printf("📊 Node Statistics: %+v", stats)
-			log.Printf("🗺️  Routing table contains %d peers", len(routingInfo))
 		}
+
+		// ---- Add target peer ----
+		// if *sendReq && *pid != "" && len(nodeidBytes) > 0 {
+		// 	if err := addPeerToRoutingTable(kademliaHandler, *pid, nodeidBytes); err != nil {
+		// 		log.Printf("Failed to add target peer: %v", err)
+		// 	} else {
+		// 		log.Printf("✓ Added target peer to routing table: %s", *pid)
+		// 	}
+		// }
+
+		// ---- Store test embeddings ----
+		// nid, err := identity.LoadOrCreateNodeID("")
+		// if err!=nil{
+		// 	log.Printf("Node Id not created/loaded")
+		// }else{
+		// 	storeTestEmbeddings(kademliaHandler, nid)
+		// }
+
+		// ---- Print routing stats ----
+		stats := kademliaHandler.GetNodeStatistics()
+		routingInfo := kademliaHandler.GetRoutingInfo()
+		log.Printf("📊 Node Statistics: %+v", stats)
+		log.Printf("🗺️  Routing table contains %d peers", len(routingInfo))
 	}
 
 	// ---- Conditionally send request ----
@@ -167,7 +178,7 @@ func main() {
 		}
 
 		var requestBody interface{}
-		if *useKademlia && kademliaHandler != nil {
+		if kademliaHandler != nil {
 			requestBody, params.Route = helpers.BuildKademliaRequest(kademliaHandler, nodeidBytes)
 		} else {
 			requestBody = map[string]interface{}{
@@ -190,12 +201,20 @@ func main() {
 	}
 
 	<-ctx.Done()
+
+	// Save routing table to DB before exit
+	if kademliaHandler != nil {
+		if err := saveRoutingTableToDB(kademliaHandler); err != nil {
+			log.Printf("Failed to save routing table: %v", err)
+		} else {
+			log.Println("✓ Routing table saved to DB.")
+		}
+	}
 }
 
 //
 // ---- Helpers ----
 //
-
 
 func addPeerToRoutingTable(handler *integration.ComprehensiveKademliaHandler, pid string, nodeID []byte) error {
 	log.Printf("Adding peer to routing table: PID=%s NID len=%v", pid, len(nodeID))
@@ -250,5 +269,30 @@ func pingPeer(p *models.UserPeer, ctx context.Context, pid string) error {
 		return err
 	}
 	log.Printf("Ping response from peer %s: %s", pid, string(resp))
+	return nil
+}
+
+func saveRoutingTableToDB(handler *integration.ComprehensiveKademliaHandler) error {
+	routingDBPath := "routing_table.db"
+	db, err := sql.Open("sqlite3", routingDBPath)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	stmt, err := db.Prepare(`INSERT OR REPLACE INTO routing_table (node_id, peer_id) VALUES (?, ?)`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	routingInfo := handler.GetRoutingInfo()
+	for _, peer := range routingInfo {
+		nodeIDHex := hex.EncodeToString(peer.NodeID)
+		_, err := stmt.Exec(nodeIDHex, peer.PeerID)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
