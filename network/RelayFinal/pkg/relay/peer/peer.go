@@ -6,7 +6,9 @@ import (
 	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"math/big"
 	"sort"
@@ -283,55 +285,70 @@ func refreshReservations(dp *models.UserPeer, ctx context.Context, relayInfo pee
 }
 
 func handleDepthStream(s network.Stream) {
-	log.Println("[DEBUG] Incoming Depth stream from", s.Conn().RemotePeer())
-	defer s.Close()
+    log.Println("[DEBUG] Incoming Depth stream from", s.Conn().RemotePeer())
+    defer s.Close()
 
-	reader := bufio.NewReader(s)
-	for {
-		line, err := reader.ReadBytes('\n')
-		if err != nil {
-			log.Println("[DEBUG]Error reading the bytes from the stream")
-		}
-		line = bytes.TrimRight(line, "\n")
-		line = bytes.TrimRight(line, "\x00")
+    reader := bufio.NewReader(s)
+    for {
+        line, err := reader.ReadBytes('\n') // newline-delimited framing
+        if err != nil {
+            // If we got no bytes, stop. If we got some bytes + err, process the bytes then stop.
+            if len(line) == 0 {
+                if errors.Is(err, io.EOF) {
+                    log.Println("[DEBUG] stream EOF; closing")
+                } else {
+                    log.Printf("[DEBUG] read error: %v", err)
+                }
+                return
+            }
+            log.Printf("[DEBUG] read error after partial line: %v (processing partial)", err)
+        }
 
-		var reqStruct models.ReqFormat
-		log.Println("[DEBUG] Raw input:", string(line))
-		if err != nil {
-			log.Println("[DEBUG]Error unmarshalling to reqStruct")
-		}
-		json.Unmarshal(line, &reqStruct)
+        // Trim newline(s)
+        line = bytes.TrimRight(line, "\r\n")
+        if len(line) == 0 {
+            continue // ignore empty keepalives etc.
+        }
 
-		var reqParams map[string]any
-		reqStruct.ReqParams = bytes.TrimRight(reqStruct.ReqParams, "\x00")
-		if err := json.Unmarshal(reqStruct.ReqParams, &reqParams); err != nil {
-			log.Printf("[ERROR] Failed to unmarshal incoming request: %v\n", err)
-			return
-		}
-		log.Printf("[DEBUG]ReqParams is : %+v \n", reqParams)
+        var reqStruct models.ReqFormat
+        if err := json.Unmarshal(line, &reqStruct); err != nil {
+            log.Printf("[ERROR] Failed to unmarshal ReqFormat: %v (payload=%q)", err, line)
+            continue
+        }
 
-		//GET method recv. from relay to peer
-		switch reqParams["type"] {
-		case "GET":
-			log.Printf("Serving GET Req")
-			resp := ServeGetReq(reqStruct.ReqParams)
-			resp = bytes.TrimRight(resp, "\x00")
-			log.Printf("Response for GET is: %+v", string(resp))
-			_, err = s.Write(resp)
-			if err != nil {
-				log.Println("[DEBUG]Error writing resp bytes to relay stream")
-				return
-			}
-		case "POST":
-			resp := ServePostReq(reqStruct.ReqParams, reqStruct.Body)
-			resp = bytes.TrimRight(resp, "\x00")
-			_, err = s.Write(resp)
-			if err != nil {
-				log.Println("[DEBUG]Error writing resp bytes to relay stream")
-				return
-			}
-		}
-	}
+        var reqParams map[string]any
+        if err := json.Unmarshal(bytes.TrimRight(reqStruct.ReqParams, "\x00"), &reqParams); err != nil {
+            log.Printf("[ERROR] Failed to unmarshal incoming request: %v", err)
+            continue
+        }
+        log.Printf("[DEBUG]ReqParams is : %+v", reqParams)
+
+        switch strings.ToUpper(fmt.Sprint(reqParams["type"])) {
+        case "GET":
+
+            log.Printf("Serving GET Req")
+            resp := ServeGetReq(reqStruct.ReqParams)
+            resp = bytes.TrimRight(resp, "\x00")
+            resp = append(resp, '\n') // v.v. imp
+
+            log.Printf("Response for GET is: %s", string(resp))
+            if _, err := s.Write(resp); err != nil {
+                log.Printf("[DEBUG] Error writing resp bytes to relay stream: %v", err)
+                return
+            }
+        case "POST":
+            resp := ServePostReq(reqStruct.ReqParams, reqStruct.Body)
+            resp = bytes.TrimRight(resp, "\x00")
+            resp = append(resp, '\n')
+			
+            if _, err := s.Write(resp); err != nil {
+                log.Printf("[DEBUG] Error writing resp bytes to relay stream: %v", err)
+                return
+            }
+        default:
+            log.Printf("[WARN] Unknown route type: %v", reqParams["type"])
+        }
+    }
 }
 
 func Send(dp *models.UserPeer, ctx context.Context, targetPeerID string, reqParams []byte, body []byte) ([]byte, error) {
