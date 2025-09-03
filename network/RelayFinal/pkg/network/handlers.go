@@ -7,23 +7,27 @@ import (
 	"os"
 )
 
-func FindValueHandler(params map[string]any) []byte{
-	log.Printf("params recv to PingHandler is: %+v", params)
-	// add functionality for checking all params here
-	
-	reqJson, _ := 	json.Marshal(params)
-	return reqJson
-}
-
-func PingHandler(params map[string]any) []byte{
-	log.Printf("params recv to PingHandler is: %+v", params)
+func FindValueHandler(params map[string]any) []byte {
+	log.Printf("params recv to FindValue is: %+v", params)
 	// add functionality for checking all params here
 
 	reqJson, _ := json.Marshal(params)
 	return reqJson
 }
 
-func StoreHandler() []byte{
+func PingHandler(params map[string]any) []byte {
+	log.Printf("params recv to PingHandler is: %+v", params)
+	// add functionality for checking all params here
+
+	reqJson, err := json.Marshal(params)
+	if err != nil {
+		log.Printf("error marshalling params in PingHandler: %v", err)
+		return nil
+	}
+	return reqJson
+}
+
+func StoreHandler() []byte {
 	var resp []byte
 	return resp
 }
@@ -36,7 +40,7 @@ func SendHandler(params map[string]any, bodyBytes []byte) []byte {
 	}
 
 	log.Printf("SendHandler called with params: %+v\n", params)
-	
+
 	filename, ok := params["Filename"].(string)
 	if !ok || filename == "" {
 		log.Println("invalid params, no filename field")

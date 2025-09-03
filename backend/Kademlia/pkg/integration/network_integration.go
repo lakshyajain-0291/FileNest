@@ -188,13 +188,13 @@ func NewComprehensiveKademliaHandler() *ComprehensiveKademliaHandler {
 }
 
 // InitializeNode - Initialize Kademlia node
-func (ckh *ComprehensiveKademliaHandler) InitializeNode(nodeIDdb, peerID, dbPath string) error {
+func (ckh *ComprehensiveKademliaHandler) InitializeNode(peerID, dbPath string) error {
 	if ckh.isInitialized {
 		return nil
 	}
 
 	// ✅ Convert ONCE at initialization
-	nodeID, err := identity.LoadOrCreateNodeID(nodeIDdb)
+	nodeID, err := identity.LoadOrCreateNodeID("")
 	if err != nil {
 		return fmt.Errorf("failed to load or create node ID: %w", err)
 	}

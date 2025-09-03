@@ -344,12 +344,12 @@ func Send(dp *models.UserPeer, ctx context.Context, targetPeerID string, reqPara
 	req.ReqParams = reqParams // all req data is sent in reqParams
 	req.Body = body
 	log.Printf("Sending req: %+v", req)
-	
+
 	stream, err := dp.Host.NewStream(ctx, dp.RelayID, UserPeerProtocol)
 	if err != nil {
 		log.Println("[DEBUG]Error opening a fetch ID stream to relay")
 		return nil, err
-	}else{
+	} else {
 		log.Println("[DEBUG]Opened stream to relay successsfully")
 	}
 
@@ -358,7 +358,7 @@ func Send(dp *models.UserPeer, ctx context.Context, targetPeerID string, reqPara
 	if err != nil {
 		log.Println("[DEBUG]Error marshalling get req to be sent to relay")
 		return nil, err
-	}else{
+	} else {
 		log.Println("[DEBUG]Marshalled get req to be sent to relay successfully")
 	}
 	log.Println([]byte(jsonReqRelay))

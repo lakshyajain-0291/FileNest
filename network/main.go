@@ -17,6 +17,7 @@ import (
 	"final/network/RelayFinal/pkg/relay/models"
 	"final/network/RelayFinal/pkg/relay/peer"
 
+	"final/backend/pkg/identity"
 	"final/backend/pkg/integration"
 	"final/backend/pkg/types"
 )
@@ -74,7 +75,7 @@ func main() {
 	log.Printf("relayAddrs in Mongo: %+v\n", relayAddrs)
 
 	// Start Depth Peer
-	p, err := peer.NewPeer(relayAddrs, "USER")
+	p, err := peer.NewPeer(relayAddrs, "user")
 	if err != nil {
 		log.Printf("Error on NewDepthPeer: %v\n", err.Error())
 		return
@@ -94,7 +95,6 @@ func main() {
 
 		log.Printf("PID of node is %v", p.Host.ID().String())
 		err = kademliaHandler.InitializeNode(
-			"nodeid.db",
 			p.Host.ID().String(),
 			"./kademlia_relay.db",
 		)
@@ -202,8 +202,12 @@ func main() {
 
 			for _, file := range testFiles {
 				// just use filename hashed into NodeID
-				fileNodeID := []byte(file.Filename)
-				err = kademliaHandler.StoreEmbedding(fileNodeID, file.Embedding)
+				nodeid, err := identity.LoadOrCreateNodeID("")
+				if err != nil {
+					log.Printf("Failed to load/create NodeID: %v", err)
+					continue
+				}	
+				err = kademliaHandler.StoreEmbedding(nodeid, file.Embedding)
 				if err != nil {
 					log.Printf("Failed to store embedding for %s: %v", file.Filename, err)
 				} else {
