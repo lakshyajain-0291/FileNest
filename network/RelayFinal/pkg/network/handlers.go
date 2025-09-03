@@ -19,7 +19,10 @@ func PingHandler(params map[string]any) []byte{
 	log.Printf("params recv to PingHandler is: %+v", params)
 	// add functionality for checking all params here
 
-	reqJson, _ := json.Marshal(params)
+	reqJson, err := json.Marshal(params)
+	if(err != nil){
+		log.Printf("Error while marshalling in PingHandler: %+v", err.Error())
+	}
 	return reqJson
 }
 
