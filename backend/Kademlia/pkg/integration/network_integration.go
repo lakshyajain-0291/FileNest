@@ -191,6 +191,10 @@ func NewComprehensiveKademliaHandler() *ComprehensiveKademliaHandler {
 	}
 }
 
+func (ckh *ComprehensiveKademliaHandler) Node() *kademlia.KademliaNode{
+	return ckh.node;
+} 
+
 // InitializeNode - Initialize Kademlia node
 func (ckh *ComprehensiveKademliaHandler) InitializeNode(peerID, dbPath string) error {
 	if ckh.isInitialized {
