@@ -39,18 +39,18 @@ func ParseBootstrapFlags(nodeidHex, pid string) ([]IDs, error) {
 	return ids, nil
 }
 
-func BuildKademliaRequest(handler *integration.ComprehensiveKademliaHandler, nodeidBytes []byte) (map[string]interface{}, string) {
+func BuildKademliaFindValueRequest(handler *integration.ComprehensiveKademliaHandler, nodeidBytes []byte, embedding []float64) (map[string]interface{}, string) {
 	inputMessage := genmodels.Message{
-		Type:       "embedding_search",
-		QueryEmbed: []float64{0.1, 0.2, 0.3, 0.4, 0.5},
+		Type:       "find_value",
+		QueryEmbed: embedding,
 		Depth:      0,
-		FileMetadata: genmodels.FileMetadata{
-			Name:         "query_document.pdf",
-			CreatedAt:    time.Now().Format(time.RFC3339),
-			LastModified: time.Now().Format(time.RFC3339),
-			FileSize:     512.0,
-			UpdatedAt:    time.Now().Format(time.RFC3339),
-		},
+		// FileMetadata: genmodels.FileMetadata{
+		// 	Name:         "query_document.pdf",
+		// 	CreatedAt:    time.Now().Format(time.RFC3339),
+		// 	LastModified: time.Now().Format(time.RFC3339),
+		// 	FileSize:     512.0,
+		// 	UpdatedAt:    time.Now().Format(time.RFC3339),
+		// },
 		IsProcessed: false,
 		Found:       false,
 	}

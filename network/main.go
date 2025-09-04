@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+
+	"final/backend/pkg/identity"
 	genmodels "final/network/RelayFinal/pkg/generalpeer/models"
 	"final/network/RelayFinal/pkg/generalpeer/ws"
 	"final/network/RelayFinal/pkg/network/helpers"
@@ -23,19 +25,25 @@ import (
 
 func main() {
 	// ---- Flags ----
-	sendReq := flag.Bool("sendreq", false, "Whether to send request to target peer")
+	findval := flag.Bool("findval", false, "Search for query embedding")
 	pid := flag.String("pid", "", "Target peer ID to send request to (comma sep)")
-	nodeidHex := flag.String("nodeid", "", "Node ID for this peer (hex, comma sep)")
+	nodeidHex := flag.String("nodeid", "", "Node ID for target peer (hex, comma sep)")
+	store := flag.Bool("store", false, "Upload a file to the network")
 	flag.Parse()
 
 	// ---- Decode nodeid ----
-	var nodeidBytes []byte
+	var nodeidBytes []byte // this is for the target node id
 	if *nodeidHex != "" {
 		var err error
 		nodeidBytes, err = hex.DecodeString(*nodeidHex)
 		if err != nil {
 			log.Fatalf("invalid bootstrap NodeID: %v", err)
 		}
+	}
+	SourceNodeID, err := identity.LoadOrCreateNodeID("")
+
+	if err != nil {
+		log.Println("Could not load/create the node id")
 	}
 
 	// ---- Setup ML transport ----
@@ -161,25 +169,46 @@ func main() {
 	}
 
 	// ---- Conditionally send request ----
-	if *sendReq {
-		if *pid == "" {
-			log.Fatal("You must provide a -pid value when using -sendreq")
-		}
-		if len(nodeidBytes) == 0 {
-			log.Fatal("You must provide a -nodeid value when using -sendreq")
-		}
+	if *findval {
+		// pid is not required while sending a request
+		// if *pid == "" {
+		// 	log.Fatal("You must provide a -pid value when using -sendreq")
+		// }
+		test_embedding := []float64{0.1, 0.2, 0.3, 0.4, 0.5}
 
-		params := models.PingRequest{
+		// get the node id of the closest peer in the nodeid_embedding_map.db
+		threshold := 0;
+		limit := 1;
+		var TargetNodeID []byte
+		targetnodeids, err := kademliaHandler.Node.FindSimilar(test_embedding, threshold, limit)
+		if err != nil{
+			log.Println("Could not find the target node id")
+		}
+		// then find the peer id of the node closest to the target node from the routing table
+		TargetNodeID = targetnodeids[0].Key
+		nextNode := kademliaHandler.Node.RoutingTable.FindClosest(TargetNodeID, limit)
+
+		
+		// params := models.PingRequest{
+		// 	Type:           "GET",
+		// 	Route:          "ping",
+		// 	SenderPeerID:   p.Host.ID().String(),
+		// 	ReceiverPeerID: *pid, // t
+		// 	Timestamp:      time.Now().Unix(),
+		// }
+
+		params := models.EmbeddingSearchRequest{
 			Type:           "GET",
-			Route:          "ping",
-			SenderPeerID:   p.Host.ID().String(),
-			ReceiverPeerID: *pid,
-			Timestamp:      time.Now().Unix(),
+			Route:          "find_value",
+			SourceNodeID:  SourceNodeID,
+			SourcePeerID: p.Host.ID().String(),
+			TargetNodeID: TargetNodeID,
+			ReceiverPeerID: nextNode.PeerID,
 		}
 
 		var requestBody interface{}
 		if kademliaHandler != nil {
-			requestBody, params.Route = helpers.BuildKademliaRequest(kademliaHandler, nodeidBytes)
+			requestBody, params.Route = helpers.BuildKademliaFindValueRequest(kademliaHandler, SourceNodeID, test_embedding)
 		} else {
 			requestBody = map[string]interface{}{
 				"message":       "Hello from relay peer",
@@ -188,7 +217,7 @@ func main() {
 			}
 		}
 
-		resp, err := helpers.SendJSON(p, ctx, *pid, params, requestBody)
+		resp, err := helpers.SendJSON(p, ctx, nextNode.PeerID, params, requestBody)
 		if err != nil {
 			log.Printf("Error sending request: %v", err)
 		} else if len(resp) > 0 {
@@ -198,6 +227,21 @@ func main() {
 		} else {
 			log.Println("Received empty response")
 		}
+		// while depth!=4 && found!=true get resp
+	}
+
+	if *store {
+		// if kademliaHandler == nil {
+		// 	log.Println("Node not initialized with Kademlia, cannot store embeddings")
+		// }
+		// test_embedding := []float64{0.1, 0.2, 0.3, 0.4, 0.5}
+		// params := models.PingRequest{
+		// 	Type:           "GET",
+		// 	Route:          "ping",
+		// 	SenderPeerID:   p.Host.ID().String(),
+		// 	ReceiverPeerID: *pid,
+		// 	Timestamp:      time.Now().Unix(),
+		// }
 	}
 
 	<-ctx.Done()
@@ -296,3 +340,54 @@ func saveRoutingTableToDB(handler *integration.ComprehensiveKademliaHandler) err
 	}
 	return nil
 }
+
+func getClosestNodeIDFromDB(dbPath string, targetEmbedding []float64) (string, error) {
+	db, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		return "", err
+	}
+	defer db.Close()
+
+	rows, err := db.Query("SELECT node_id, embedding FROM nodeid_embedding_map")
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+
+	var closestNodeID string
+	minDist := 1e12 // large initial value
+
+	for rows.Next() {
+		var nodeID string
+		var embeddingJSON string
+		if err := rows.Scan(&nodeID, &embeddingJSON); err != nil {
+			return "", err
+		}
+
+		var embedding []float64
+		if err := json.Unmarshal([]byte(embeddingJSON), &embedding); err != nil {
+			continue // skip invalid embeddings
+		}
+
+		if len(embedding) != len(targetEmbedding) {
+			continue // skip if dimensions mismatch
+		}
+
+		dist := 0.0
+		for i := range embedding {
+			diff := embedding[i] - targetEmbedding[i]
+			dist += diff * diff
+		}
+
+		if dist < minDist {
+			minDist = dist
+			closestNodeID = nodeID
+		}
+	}
+
+	if closestNodeID == "" {
+		return "", sql.ErrNoRows
+	}
+	return closestNodeID, nil
+}
+
