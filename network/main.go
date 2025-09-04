@@ -32,14 +32,14 @@ func main() {
 	flag.Parse()
 
 	// ---- Decode nodeid ----
-	var nodeidBytes []byte // this is for the target node id
-	if *nodeidHex != "" {
-		var err error
-		nodeidBytes, err = hex.DecodeString(*nodeidHex)
-		if err != nil {
-			log.Fatalf("invalid bootstrap NodeID: %v", err)
-		}
-	}
+	// var nodeidBytes []byte // this is for the target node id
+	// if *nodeidHex != "" {
+	// 	var err error
+	// 	nodeidBytes, err = hex.DecodeString(*nodeidHex)
+	// 	if err != nil {
+	// 		log.Fatalf("invalid bootstrap NodeID: %v", err)
+	// 	}
+	// }
 	SourceNodeID, err := identity.LoadOrCreateNodeID("")
 
 	if err != nil {
