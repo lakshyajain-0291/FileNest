@@ -196,22 +196,22 @@ func (ckh *ComprehensiveKademliaHandler) Node() *kademlia.KademliaNode{
 } 
 
 // InitializeNode - Initialize Kademlia node
-func (ckh *ComprehensiveKademliaHandler) InitializeNode(peerID, dbPath string) error {
+func (ckh *ComprehensiveKademliaHandler) InitializeNode(peerID, dbPath string) ([]byte,error) {
 	if ckh.isInitialized {
-		return nil
+		return nil, nil
 	}
 
 	// ✅ Convert ONCE at initialization
 	nodeID, err := identity.LoadOrCreateNodeID("")
 	if err != nil {
-		return fmt.Errorf("failed to load or create node ID: %w", err)
+		return nil, fmt.Errorf("failed to load or create node ID: %w", err)
 	}
 
 	var network kademlia.NetworkInterface
 	log.Printf("network integration, nodeLen %v", len(nodeID))
 	node, err := kademlia.NewKademliaNode(nodeID, peerID, network, dbPath)
 	if err != nil {
-		return fmt.Errorf("failed to create Kademlia node: %w", err)
+		return nodeID, fmt.Errorf("failed to create Kademlia node: %w", err)
 	}
 
 	processor := NewLocalEmbeddingProcessor()
@@ -232,7 +232,7 @@ func (ckh *ComprehensiveKademliaHandler) InitializeNode(peerID, dbPath string) e
 	if _, err := os.Stat(routingDBPath); os.IsNotExist(err) {
 		db, err = sql.Open("sqlite3", routingDBPath)
 		if err != nil {
-			return fmt.Errorf("failed to open routing table db: %w", err)
+			return nodeID, fmt.Errorf("failed to open routing table db: %w", err)
 		}
 		defer db.Close()
 
@@ -242,13 +242,13 @@ func (ckh *ComprehensiveKademliaHandler) InitializeNode(peerID, dbPath string) e
 			peer_id TEXT
 		)`)
 		if err != nil {
-			return fmt.Errorf("failed to create routing table: %w", err)
+			return nodeID, fmt.Errorf("failed to create routing table: %w", err)
 		}
 		log.Printf("Created routing_table.db and routing_table table.")
 	} else {
 		db, err = sql.Open("sqlite3", routingDBPath)
 		if err != nil {
-			return fmt.Errorf("failed to open routing table db: %w", err)
+			return nodeID, fmt.Errorf("failed to open routing table db: %w", err)
 		}
 		defer db.Close()
 	}
@@ -256,14 +256,14 @@ func (ckh *ComprehensiveKademliaHandler) InitializeNode(peerID, dbPath string) e
 	// Load existing entries into routing table
 	rows, err := db.Query("SELECT node_id, peer_id FROM routing_table")
 	if err != nil {
-		return fmt.Errorf("failed to query routing table: %w", err)
+		return nodeID, fmt.Errorf("failed to query routing table: %w", err)
 	}
 	defer rows.Close()
 
 	for rows.Next() {
 		var nodeIDHex, peerID string
 		if err := rows.Scan(&nodeIDHex, &peerID); err != nil {
-			return fmt.Errorf("failed to scan routing table row: %w", err)
+			return nodeID,fmt.Errorf("failed to scan routing table row: %w", err)
 		}
 		nodeIDBytes, err := hex.DecodeString(nodeIDHex)
 		if err != nil {
@@ -274,7 +274,7 @@ func (ckh *ComprehensiveKademliaHandler) InitializeNode(peerID, dbPath string) e
 		node.RoutingTable().Update(peerInfo)
 	}
 
-	return nil
+	return nodeID, nil
 }
 
 // ProcessEmbeddingRequestWrapper - Main function using []byte throughout

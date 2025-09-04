@@ -50,7 +50,6 @@ func main() {
 	mlChan := make(chan genmodels.ClusterWrapper, 10)
 	mlTransport := ws.NewWebSocketTransport(":8081")
 	defer mlTransport.Close()
-
 	go func() {
 		if err := mlTransport.StartMLReceiver(mlChan); err != nil {
 			log.Printf("ML Receiver error: %v", err)
@@ -92,15 +91,20 @@ func main() {
 
 	kademliaHandler := integration.NewComprehensiveKademliaHandler()
 
-	log.Printf("PID of node is %v", p.Host.ID().String())
-
 	// node initialization and bootstrap
-	err = kademliaHandler.InitializeNode(
+	selfNodeID, err := kademliaHandler.InitializeNode(
 		p.Host.ID().String(),
 		"./nodeid_embedding_map.db",
 	)
 	if err != nil {
 		log.Printf("Failed to initialize Kademlia: %v", err)
+		return
+	}
+
+	decSelfNodeID := hex.EncodeToString(selfNodeID)
+	err  = relayhelper.UpsertNode(decSelfNodeID, p.Host.ID().String())
+	if(err != nil){
+		log.Printf("Error in upserting node to mongo: %v \n", err.Error())
 	} else {
 		log.Println("✓ Kademlia integration initialized")
 
