@@ -1,8 +1,9 @@
 package storage
 
 import (
-	"fmt"
 	"final/backend/pkg/embedding"
+	"fmt"
+	"log"
 	"sort"
 
 	"gorm.io/driver/sqlite"
@@ -46,7 +47,7 @@ func (s *SQLiteStorage) FindSimilar(queryEmbed []float64, threshold float64, lim
 		similarity := embedding.CosineSimilarity(queryEmbed, []float64(ne.Embedding))
 
 		// Only include embeddings that meet the threshold
-		if similarity >= threshold && len(ne.NodeID) != 20{
+		if similarity >= threshold{
 			results = append(results, EmbeddingResult{
 				Key:        ne.NodeID,
 				Embedding:  []float64(ne.Embedding),
@@ -64,7 +65,7 @@ func (s *SQLiteStorage) FindSimilar(queryEmbed []float64, threshold float64, lim
 	if len(results) > limit {
 		results = results[:limit]
 	}
-
+	log.Printf("results: %v", results)
 	return results, nil
 }
 
@@ -77,16 +78,16 @@ func (s *SQLiteStorage) Close() error {
 }
 
 func (s *SQLiteStorage) StoreNodeEmbedding(nodeID []byte, embeddingVec []float64) error {
-	if len(nodeID) != 20 {
-		return fmt.Errorf("nodeID must be 20 bytes (160 bits), got %d", len(nodeID))
-	}
+    if len(nodeID) != 20 {
+        return fmt.Errorf("nodeID must be 20 bytes (160 bits), got %d", len(nodeID))
+    }
 
-	nodeEmbedding := NodeEmbedding{
-		NodeID:    nodeID,
-		Embedding: EmbeddingVector(embeddingVec),
-	}
+    nodeEmbedding := NodeEmbedding{
+        NodeID:    nodeID,
+        Embedding: EmbeddingVector(embeddingVec),
+    }
 
-	// Use GORM's Upsert (Create or Update)
-	result := s.db.Where("node_id = ?", nodeID).Assign(nodeEmbedding).FirstOrCreate(&nodeEmbedding)
-	return result.Error
+    // Create a new record for each embedding. This allows multiple embeddings per NodeID.
+    result := s.db.Create(&nodeEmbedding)
+    return result.Error
 }

@@ -1,9 +1,9 @@
 package storage
 
 import (
-    "database/sql/driver"
-    "encoding/json"
-    "fmt"
+	"database/sql/driver"
+	"encoding/json"
+	"fmt"
 )
 
 // Custom type for storing float64 slice as JSON in database
@@ -32,7 +32,7 @@ func (e *EmbeddingVector) Scan(value interface{}) error {
 // Database model
 type NodeEmbedding struct {
     ID        uint            `gorm:"primaryKey" json:"id"`
-    NodeID    []byte          `gorm:"column:node_id;not null;uniqueIndex" json:"node_id"`
+    NodeID    []byte          `gorm:"column:node_id;not null" json:"node_id"`
     Embedding EmbeddingVector `gorm:"column:embedding;type:text;not null" json:"embedding"`
 }
 
