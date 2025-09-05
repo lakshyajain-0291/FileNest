@@ -181,18 +181,17 @@ func main() {
 		test_embedding := []float64{0.1, 0.2, 0.3, 0.4, 0.5}
 
 		// get the node id of the closest peer in the nodeid_embedding_map.db
-		threshold := 0;
+		threshold := 0.7;
 		limit := 1;
 		var TargetNodeID []byte
-		targetnodeids, err := kademliaHandler.Node.FindSimilar(test_embedding, threshold, limit)
+		targetnodeids, err := kademliaHandler.Node().FindSimilar(test_embedding, threshold, limit)
 		if err != nil{
 			log.Println("Could not find the target node id")
 		}
 		// then find the peer id of the node closest to the target node from the routing table
 		TargetNodeID = targetnodeids[0].Key
-		nextNode := kademliaHandler.Node.RoutingTable.FindClosest(TargetNodeID, limit)
+		nextNode := kademliaHandler.Node().RoutingTable().FindClosest(TargetNodeID, limit)
 
-		
 		// params := models.PingRequest{
 		// 	Type:           "GET",
 		// 	Route:          "ping",
@@ -200,14 +199,14 @@ func main() {
 		// 	ReceiverPeerID: *pid, // t
 		// 	Timestamp:      time.Now().Unix(),
 		// }
-
+		nextPID := nextNode[0].PeerID
 		params := models.EmbeddingSearchRequest{
 			Type:           "GET",
 			Route:          "find_value",
 			SourceNodeID:  SourceNodeID,
 			SourcePeerID: p.Host.ID().String(),
 			TargetNodeID: TargetNodeID,
-			ReceiverPeerID: nextNode.PeerID,
+			ReceiverPeerID: nextPID,
 		}
 
 		var requestBody interface{}
@@ -221,7 +220,7 @@ func main() {
 			}
 		}
 
-		resp, err := helpers.SendJSON(p, ctx, nextNode.PeerID, params, requestBody)
+		resp, err := helpers.SendJSON(p, ctx, nextPID, params, requestBody)
 		if err != nil {
 			log.Printf("Error sending request: %v", err)
 		} else if len(resp) > 0 {
